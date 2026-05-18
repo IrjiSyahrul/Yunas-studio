@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yunas Photo Studio</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f7f7f7;
+      color: #333;
+    }
+
+    header {
+      background-image: url('./image/3.jpg');
+      background-size: cover;
+      background-position: center;
+      color: white;
+      text-align: center;
+      padding: 100px 20px;
+    }
+
+    header h1 {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+
+    header p {
+      font-size: 20px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      background-color: #222;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      padding: 15px 25px;
+      display: block;
+    }
+
+    nav a:hover {
+      background-color: #444;
+    }
+
+    section {
+      padding: 60px 20px;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    .services, .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+
+    .card:hover {
+      transform: scale(1.03);
+    }
+
+    .card img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+    }
+
+    .card h3 {
+      margin: 15px;
+    }
+
+    .card p {
+      margin: 0 15px 15px;
+    }
+
+    footer {
+      background-color: #222;
+      color: white;
+      text-align: center;
+      padding: 30px 20px;
+    }
+
+    .cta {
+      background-color: #333;
+      color: white;
+      padding: 40px 20px;
+      text-align: center;
+    }
+
+    .cta h2 {
+      margin-bottom: 10px;
+    }
+
+    .cta a {
+      background-color: #ff4c4c;
+      color: white;
+      padding: 15px 30px;
+      text-decoration: none;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 10px;
+    }
+
+    .cta a:hover {
+      background-color: #e03e3e;
+    }
+  </style>
+  <style>
+  .gallery {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px; /* Jarak antar gambar */
+    padding: 20px;
+  }
+
+  .gallery .card {
+    width: 100%;
+    max-width: 300px; /* Ukuran maksimum tiap gambar */
+    height: auto;
+    border-radius: 8px;
+    object-fit: cover;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+  }
+
+  .gallery .card:hover {
+    transform: scale(1.03);
+  }
+
+  @media (max-width: 768px) {
+    .gallery .card {
+      max-width: 45%;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .gallery .card {
+      max-width: 90%;
+    }
+  }
+</style
+</head>
+<body>
+
+<header>
+  <h1>Yunas Photo Studio</h1>
+  <p>Abadikan Momen Berharga Anda Bersama Kami</p>
+</header>
+
+<nav>
+  <a href="#layanan">Layanan</a>
+  <a href="#galeri">Galeri</a>
+  <a href="#kontak">Kontak</a>
+</nav>
+
+<section id="layanan">
+  <h2 style="text-align:center;">Layanan Kami</h2>
+  <div class="services">
+    <div class="card">
+      <img src="./image/3.jpg" alt="Foto Prawedding">
+      <h3>Foto Pernikahan</h3>
+      <p>Dokumentasikan hari spesial Anda dengan hasil terbaik dari tim profesional kami.</p>
+    </div>
+    <div class="card">
+      <img src="./image/YNSF7974%20(1).jpg" alt="Foto Studio">
+      <h3>Foto Studio</h3>
+      <p>Sesi foto pribadi, ataupun group di studio kami yang nyaman.</p>
+    </div>
+    <div class="card">
+      <img src="./image/YNSF7219.jpg" alt="Foto Bayi">
+      <h3>Foto Family</h3>
+      <p>Abadikan keluarga anda di studio kami.</p>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <h2>Siap untuk sesi foto impian Anda?</h2>
+  <p>Hubungi kami untuk jadwal dan penawaran terbaik.</p>
+  <a href="http://wa.me/6281287992223">Hubungi Sekarang</a>
+</section>
+
+<section id="galeri">
+  <h2 style="text-align:center;">Galeri</h2>
+  <div class="gallery">
+    <img class="card" src="./image/Salinan%20YNSF6397%208RP%20Frame.jpg" alt="Galeri 1">
+    <img class="card" src="./image/YNSF3116.jpg" alt="Galeri 2">
+    <img class="card" src="./image/YNSF3119.jpg" alt="Galeri 3">
+    <img class="card" src="./image/YNSF7219.jpg" alt="Galeri 4">
+  </div>
+</section>
+
+<footer id="kontak">
+  <h3>Kontak Kami</h3>
+  <p>📍 Jl. Lkr. Sel., Jayamekar, Kec. Baros, Kota Sukabumi, Jawa Barat 43166</p>
+  <p>📞 +62 812-8799-2223</p>
+  <p>📧 yunas.studio22@gmail.com</p>
+  <p>&copy; 2025 Yunas Photo Studio</p>
+</footer>
+
+</body>
+</html>
