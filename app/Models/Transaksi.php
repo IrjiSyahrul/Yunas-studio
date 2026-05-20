@@ -29,6 +29,9 @@ class Transaksi extends Model
         'url_photos_result',
         'select_edit_photo',
         'select_print_photo',
+        'order_id',
+        'session_date',
+        'session_time',
     ];
 
     public function user()

@@ -12,26 +12,16 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class BookingController extends Controller
 {
     /**
-     * User submit form booking → simpan ke tabel transaksis.
-     *
-     * Yang ditangani di sini:
-     *   - Data pelanggan (customer_name, phone_number, product, packet, jadwal)
-     *   - Buat akun User otomatis jika belum ada (sama seperti TransaksiController)
-     *   - Generate receipt_code
-     *   - Status pembayaran = 'belum dibayar' (akan diupdate PaymentController setelah bayar)
-     *
-     * Yang TIDAK ditangani di sini (urusan PaymentController):
-     *   - Snap Token Midtrans
-     *   - Webhook konfirmasi bayar
-     *   - Update status → 'sudah dibayar'
-     *   - Record income / update balance
+     * Validasi form → simpan transaksi (status: menunggu pembayaran) → buat Snap Token.
+     * Status akan diupdate ke 'sudah dibayar' oleh PaymentController@handleWebhook.
      */
-    public function store(Request $request): JsonResponse
+    public function createSnapToken(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'customer_name' => 'required|string|max:50',
@@ -51,18 +41,15 @@ class BookingController extends Controller
 
         $validated = $validator->validated();
 
-        // Ambil paket dari database — harga tidak boleh dari frontend
         $packet = Packet::with('product')->findOrFail($validated['packet_id']);
 
-        // Pastikan packet milik product yang dipilih
         if ($packet->product_id != $validated['product_id']) {
             return response()->json(['message' => 'Paket tidak sesuai dengan produk.'], 422);
         }
 
         DB::beginTransaction();
         try {
-            // ── 1. Buat / temukan User berdasarkan nomor telepon ──────────────
-            // Sama persis seperti logika di TransaksiController@store
+            // Buat / temukan User
             $user = User::firstOrCreate(
                 ['username' => $validated['phone_number']],
                 [
@@ -72,45 +59,69 @@ class BookingController extends Controller
                 ]
             );
 
-            // ── 2. Hitung harga ───────────────────────────────────────────────
-            // Booking mandiri tidak ada tambahan ekstra maupun diskon
-            // Jika nanti ingin ditambah, tinggal tambahkan di sini
-            $totalPrice = $packet->price;
-
-            // ── 3. Simpan transaksi ───────────────────────────────────────────
+            // Simpan transaksi dengan status 'menunggu pembayaran'
             $transaksi = Transaksi::create([
                 'user_id'        => $user->id,
                 'customer_name'  => $validated['customer_name'],
                 'phone_number'   => $validated['phone_number'],
                 'packet_id'      => $validated['packet_id'],
-                'total_price'    => $totalPrice,
+                'total_price'    => $packet->price,
                 'discount'       => 0,
-                'status'         => 'belum dibayar',    // PaymentController yang akan update ini
-                'payment_type'   => 'none',             // PaymentController yang akan update ini
+                'status'         => 'belum dibayar',
+                'payment_type'   => 'none',
                 'dp_amount'      => null,
                 'process_status' => 'Pelanggan Belum Foto',
-                'note'           => 'Booking mandiri via website — ' . $validated['session_date'] . ' ' . $validated['session_time'],
-                'receipt_code'   => 'TEMP-' . uniqid(), // Akan di-update setelah ID tersedia
+                'note'           => 'Booking online — ' . $validated['session_date'] . ' ' . $validated['session_time'],
+                'receipt_code'   => 'TEMP-' . uniqid(),
             ]);
 
-            // ── 4. Generate receipt_code pakai ID (sama seperti TransaksiController) ──
-            $transaksi->receipt_code = 'INV/' . Carbon::now()->format('Ymd') . '/' . $transaksi->transaction_id;
+            // Generate receipt_code — dipakai sebagai order_id Midtrans
+            $receiptCode = 'INV/' . Carbon::now()->format('Ymd') . '/' . $transaksi->transaction_id;
+       
+            $transaksi->receipt_code = $receiptCode;
+            $transaksi->order_id = $receiptCode;  // ← Tambahkan ini!
+
             $transaksi->save();
 
             DB::commit();
 
+            // Konfigurasi Midtrans
+            \Midtrans\Config::$serverKey    = config('midtrans.server_key');
+            \Midtrans\Config::$isProduction = config('midtrans.is_production');
+            \Midtrans\Config::$isSanitized  = true;
+            \Midtrans\Config::$is3ds        = true;
+
+            $snapToken = \Midtrans\Snap::getSnapToken([
+                'transaction_details' => [
+                    'order_id'     => $receiptCode, // receipt_code sebagai order_id
+                    'gross_amount' => (int) $packet->price,
+                ],
+                'customer_details' => [
+                    'first_name' => $validated['customer_name'],
+                    'phone'      => $validated['phone_number'],
+                ],
+                'item_details' => [[
+                    'id'       => $packet->id,
+                    'price'    => (int) $packet->price,
+                    'quantity' => 1,
+                    'name'     => $packet->product->name . ' - ' . $packet->name,
+                ]],
+                    'expiry' => [
+                    'unit' => 'minutes', 
+                    'duration' => 1,    // Beri waktu 20 menit bagi pelanggan untuk transfer
+                ],
+            ]);
+
             return response()->json([
-                'message'      => 'Booking berhasil! Kami akan segera menghubungi Anda.',
-                'transaksi_id' => $transaksi->id,
-                'receipt_code' => $transaksi->receipt_code,
-                'order_id'     => $transaksi->receipt_code, // Dipakai PaymentController nanti
-            ], 201);
+                'snap_token' => $snapToken,
+                'order_id'   => $receiptCode,
+            ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-
+            Log::error('Booking Error: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Gagal menyimpan booking: ' . $e->getMessage(),
+                'message' => 'Gagal memproses: ' . $e->getMessage()
             ], 500);
         }
     }

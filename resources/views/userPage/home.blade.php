@@ -4,8 +4,8 @@
 
 @section('content')
 
-    {{-- Modal Booking --}}
-   @include('userPage.components.modal.booking-modal') 
+    @include('userPage.components.modal.booking-modal')
+    @include('userPage.components.modal.product-detail-modal')
 
     {{-- MOBILE VIEW --}}
     <div class="mobile-only bg-light min-vh-100">
@@ -31,7 +31,7 @@
         @include('userPage.components.desktop.gallery')
 
         @include('userPage.components.desktop.booking-step')
-        
+
         @include('userPage.components.desktop.footer')
     </div>
 

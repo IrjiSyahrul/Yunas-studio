@@ -15,7 +15,7 @@
                 <div class="col-md-6 col-lg-3">
                     <div class="card border-0 shadow-sm overflow-hidden h-100">
                         <div class="position-relative overflow-hidden" style="height: 250px;">
-                            <img src="https://via.placeholder.com/400x300" class="card-img-top w-100 h-100 object-fit-cover"
+                            <img src="{{ asset('images/Potrait.jpg') }}" class="card-img-top w-100 h-100 object-fit-cover"
                                 style="transition: transform 0.5s;" onmouseover="this.style.transform='scale(1.05)'"
                                 onmouseout="this.style.transform='scale(1)'" alt="Galeri Foto">
                         </div>
@@ -24,7 +24,7 @@
                 <div class="col-md-6 col-lg-3">
                     <div class="card border-0 shadow-sm overflow-hidden h-100">
                         <div class="position-relative overflow-hidden" style="height: 250px;">
-                            <img src="https://via.placeholder.com/400x300" class="card-img-top w-100 h-100 object-fit-cover"
+                            <img src="{{ asset('images/wedding.jpg') }}" class="card-img-top w-100 h-100 object-fit-cover"
                                 style="transition: transform 0.5s;" onmouseover="this.style.transform='scale(1.05)'"
                                 onmouseout="this.style.transform='scale(1)'" alt="Galeri Foto">
                         </div>
@@ -33,7 +33,7 @@
                 <div class="col-md-6 col-lg-3">
                     <div class="card border-0 shadow-sm overflow-hidden h-100">
                         <div class="position-relative overflow-hidden" style="height: 250px;">
-                            <img src="https://via.placeholder.com/400x300" class="card-img-top w-100 h-100 object-fit-cover"
+                            <img src="{{ asset('images/Family Package.jpg') }}" class="card-img-top w-100 h-100 object-fit-cover"
                                 style="transition: transform 0.5s;" onmouseover="this.style.transform='scale(1.05)'"
                                 onmouseout="this.style.transform='scale(1)'" alt="Galeri Foto">
                         </div>
@@ -42,7 +42,7 @@
                 <div class="col-md-6 col-lg-3">
                     <div class="card border-0 shadow-sm overflow-hidden h-100">
                         <div class="position-relative overflow-hidden" style="height: 250px;">
-                            <img src="https://via.placeholder.com/400x300" class="card-img-top w-100 h-100 object-fit-cover"
+                            <img src="{{ asset('images/Graduation Session.jpg') }}" class="card-img-top w-100 h-100 object-fit-cover"
                                 style="transition: transform 0.5s;" onmouseover="this.style.transform='scale(1.05)'"
                                 onmouseout="this.style.transform='scale(1)'" alt="Galeri Foto">
                         </div>
@@ -51,7 +51,7 @@
                 <div class="col-md-6 col-lg-3">
                     <div class="card border-0 shadow-sm overflow-hidden h-100">
                         <div class="position-relative overflow-hidden" style="height: 250px;">
-                            <img src="https://via.placeholder.com/400x300" class="card-img-top w-100 h-100 object-fit-cover"
+                            <img src="{{ asset('images/couple.jpg') }}" class="card-img-top w-100 h-100 object-fit-cover"
                                 style="transition: transform 0.5s;" onmouseover="this.style.transform='scale(1.05)'"
                                 onmouseout="this.style.transform='scale(1)'" alt="Galeri Foto">
                         </div>
@@ -60,7 +60,7 @@
                 <div class="col-md-6 col-lg-3">
                     <div class="card border-0 shadow-sm overflow-hidden h-100">
                         <div class="position-relative overflow-hidden" style="height: 250px;">
-                            <img src="https://via.placeholder.com/400x300" class="card-img-top w-100 h-100 object-fit-cover"
+                            <img src="{{ asset('images/Groupband.jpg') }}" class="card-img-top w-100 h-100 object-fit-cover"
                                 style="transition: transform 0.5s;" onmouseover="this.style.transform='scale(1.05)'"
                                 onmouseout="this.style.transform='scale(1)'" alt="Galeri Foto">
                         </div>
@@ -69,7 +69,7 @@
                 <div class="col-md-6 col-lg-3">
                     <div class="card border-0 shadow-sm overflow-hidden h-100">
                         <div class="position-relative overflow-hidden" style="height: 250px;">
-                            <img src="https://via.placeholder.com/400x300" class="card-img-top w-100 h-100 object-fit-cover"
+                            <img src="{{ asset('images/Birthday.jpg') }}" class="card-img-top w-100 h-100 object-fit-cover"
                                 style="transition: transform 0.5s;" onmouseover="this.style.transform='scale(1.05)'"
                                 onmouseout="this.style.transform='scale(1)'" alt="Galeri Foto">
                         </div>
@@ -78,7 +78,7 @@
                 <div class="col-md-6 col-lg-3">
                     <div class="card border-0 shadow-sm overflow-hidden h-100">
                         <div class="position-relative overflow-hidden" style="height: 250px;">
-                            <img src="https://via.placeholder.com/400x300" class="card-img-top w-100 h-100 object-fit-cover"
+                            <img src="{{ asset('images/couple.jpg') }}" class="card-img-top w-100 h-100 object-fit-cover"
                                 style="transition: transform 0.5s;" onmouseover="this.style.transform='scale(1.05)'"
                                 onmouseout="this.style.transform='scale(1)'" alt="Galeri Foto">
                         </div>

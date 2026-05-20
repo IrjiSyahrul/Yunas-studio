@@ -6,7 +6,9 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\User\HomeController as UserHomeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PacketController;
+use App\Http\Controllers\User\PacketController as UserPacketController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\User\ProductController as UserProductController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\TransaksiController;
@@ -15,18 +17,28 @@ use App\Http\Controllers\AdditionalDefaultController;
 use App\Http\Controllers\User\PaymentController;
 use App\Http\Controllers\User\BookingController;
 
-Route::get('/user', [UserHomeController::class, 'index'])
+    Route::get('/user', [UserHomeController::class, 'index'])
     ->name('userPage.home');
+  
 
-Route::post('/booking', [BookingController::class, 'store'])
-    ->name('booking.store');
 
 /*
 |--------------------------------------------------------------------------
 | Web Routess
 |--------------------------------------------------------------------------
 */
-//**Endpoint publik untuk user (tidak perlu auth)
+
+// ── Payment (Midtrans) ───────────────────────────────────────────────────
+// ── Booking: validasi form + buat Snap Token (tidak simpan ke DB) ─────────
+Route::post('/booking/snap-token', [BookingController::class, 'createSnapToken'])->name('booking.snap-token');
+ 
+// ── Payment redirect pages ────────────────────────────────────────────────
+Route::get('/payment/success', [PaymentController::class, 'paymentSuccess'])->name('payment.success');
+Route::get('/payment/failed',  [PaymentController::class, 'paymentFailed'])->name('payment.failed');
+ 
+// ── Webhook Midtrans — HARUS exempt CSRF ─────────────────────────────────
+// Tambahkan 'payment/webhook' ke App\Http\Middleware\VerifyCsrfToken@$except
+Route::post('/payment/webhook', [PaymentController::class, 'handleWebhook'])->name('payment.webhook');
 
 
 

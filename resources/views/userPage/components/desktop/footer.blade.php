@@ -34,23 +34,24 @@
 
                 <ul class="list-unstyled small">
                     <li class="mb-2">
-                        <a href="#"
+                        <a href="#booking"
                             class="text-decoration-none text-light opacity-75 hover-link">
-                            Dashboard
+                            Booking
                         </a>
                     </li>
 
+                <ul class="list-unstyled small">
                     <li class="mb-2">
-                        <a href="#"
+                        <a href="#paket"
                             class="text-decoration-none text-light opacity-75 hover-link">
                             Paket
                         </a>
                     </li>
 
                     <li class="mb-2">
-                        <a href="#"
+                        <a href="#galeri"
                             class="text-decoration-none text-light opacity-75 hover-link">
-                            Pembayaran
+                            Galeri
                         </a>
                     </li>
                 </ul>
@@ -61,7 +62,7 @@
                 <h5 class="fw-semibold mb-3 text-white">Kontak</h5>
 
                 <p class="text-light small opacity-75 mb-2">
-                    Monday - Sunday : 10.00 - 18.00
+                    Monday - Sunday : 10.00 - 22.00
                 </p>
 
                 <p class="text-light small opacity-75 mb-2">
@@ -69,7 +70,7 @@
                 </p>
 
                 <p class="text-light small opacity-75 mb-2">
-                    📞 08xxxxxxxxxx
+                    📞 0812-3506-3247
                 </p>
 
                 <p class="text-light small opacity-75 mb-0">

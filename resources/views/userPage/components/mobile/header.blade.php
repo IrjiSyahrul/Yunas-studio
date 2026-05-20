@@ -12,13 +12,7 @@
             </small>
         </div>
 
-        <a href="/"
-           class="bg-white rounded-circle d-flex align-items-center justify-content-center text-decoration-none"
-           style="width:42px;height:42px;">
-
-            <i class="bi bi-camera text-success"></i>
-
-        </a>
+       
 
     </div>
 

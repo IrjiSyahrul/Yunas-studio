@@ -15,7 +15,7 @@
 --}}
 
 <div class="modal fade"
-     id="bookingModal"
+     id="bookingModals"
      tabindex="-1"
      aria-hidden="true"
      data-bs-backdrop="static">
@@ -332,10 +332,6 @@
     .booking-step-fade { animation: stepFadeIn .25s ease; }
 </style>
 
-{{-- Load Midtrans Snap.js --}}
-<script src="{{ config('midtrans.snap_url') }}"
-        data-client-key="{{ config('midtrans.client_key') }}"></script>
-
 {{-- ═══════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ─ Saat ini : POST /booking → simpan transaksi → tampil pesan sukses
@@ -486,6 +482,7 @@
         const actionEl  = document.getElementById('booking-action-btns');
         const closeBtn  = document.getElementById('bookingCloseBtn');
 
+        // Tampilkan loading, sembunyikan tombol
         loadingEl.classList.remove('d-none');
         actionEl.classList.add('d-none');
         closeBtn.disabled = true;
@@ -500,8 +497,8 @@
         };
 
         try {
-            // ── STEP 1: Validasi + buat Snap Token (data belum ke DB) ─
-            const snapRes = await fetch('{{ route("booking.snap-token") }}', {
+            // ── STEP 1: Simpan booking ke database ───────────────────
+            const bookingRes = await fetch('{{ route('booking.store') }}', {
                 method  : 'POST',
                 headers : {
                     'Content-Type' : 'application/json',
@@ -511,43 +508,50 @@
                 body: JSON.stringify(payload),
             });
 
-            const snapData = await snapRes.json();
+            const bookingData = await bookingRes.json();
 
-            if (!snapRes.ok) {
-                const errMsg = snapData.errors
-                    ? Object.values(snapData.errors).flat().join('\n')
-                    : (snapData.message || 'Terjadi kesalahan.');
+            if (!bookingRes.ok) {
+                // Tampilkan pesan error dari server
+                const errMsg = bookingData.errors
+                    ? Object.values(bookingData.errors).flat().join('\n')
+                    : (bookingData.message || 'Terjadi kesalahan.');
                 throw new Error(errMsg);
             }
 
-            // ── STEP 2: Sembunyikan modal, buka popup Midtrans ────────
-            // Data baru masuk DB setelah Midtrans konfirmasi via webhook
-            const bsModal = bootstrap.Modal.getInstance(document.getElementById('bookingModal'));
-            window._bookingGoingToSnap = true;
-            bsModal.hide();
+            // ── [MIDTRANS] Uncomment blok ini saat Midtrans siap ─────
+            // ─ STEP 2: Minta Snap Token dari PaymentController ────────
+            // const snapRes = await fetch('{{ url('/payment/snap-token') }}', {
+            //     method  : 'POST',
+            //     headers : {
+            //         'Content-Type' : 'application/json',
+            //         'Accept'       : 'application/json',
+            //         'X-CSRF-TOKEN' : document.querySelector('meta[name="csrf-token"]').content,
+            //     },
+            //     body: JSON.stringify({ transaksi_id: bookingData.transaksi_id }),
+            // });
+            // const snapData = await snapRes.json();
+            // if (!snapRes.ok) throw new Error(snapData.message || 'Gagal memproses pembayaran.');
+            //
+            // ─ STEP 3: Sembunyikan modal, buka popup Midtrans ─────────
+            // const bsModal = bootstrap.Modal.getInstance(document.getElementById('bookingModal'));
+            // bsModal.hide();
+            //
+            // snap.pay(snapData.snap_token, {
+            //     onSuccess : (r) => { window.location.href = `{{ url('/payment/success') }}?order_id=${r.order_id}`; },
+            //     onPending : (r) => { window.location.href = `{{ url('/payment/success') }}?order_id=${r.order_id}&status=pending`; },
+            //     onError   : (r) => { window.location.href = `{{ url('/payment/failed') }}?order_id=${r.order_id}`; },
+            //     onClose   : ()  => {
+            //         bsModal.show();
+            //         loadingEl.classList.add('d-none');
+            //         actionEl.classList.remove('d-none');
+            //         closeBtn.disabled = false;
+            //     },
+            // });
+            // return; // stop di sini saat Midtrans aktif
+            // ── [/MIDTRANS] ───────────────────────────────────────────
 
-            snap.pay(snapData.snap_token, {
-                onSuccess : (r) => {
-                    window._bookingGoingToSnap = false;
-                    window.location.href = `{{ route("payment.success") }}?order_id=${r.order_id}`;
-                },
-                onPending : (r) => {
-                    window._bookingGoingToSnap = false;
-                    window.location.href = `{{ route("payment.success") }}?order_id=${r.order_id}&status=pending`;
-                },
-                onError   : (r) => {
-                    window._bookingGoingToSnap = false;
-                    window.location.href = `{{ route("payment.failed") }}?order_id=${r.order_id}`;
-                },
-                onClose   : () => {
-                    // User tutup popup tanpa bayar → buka modal lagi
-                    window._bookingGoingToSnap = false;
-                    bsModal.show();
-                    loadingEl.classList.add('d-none');
-                    actionEl.classList.remove('d-none');
-                    closeBtn.disabled = false;
-                },
-            });
+            // Saat ini (tanpa Midtrans): tampilkan pesan sukses di dalam modal
+            showSuccess(payload.customer_name, payload.phone_number);
 
         } catch (error) {
             loadingEl.classList.add('d-none');
@@ -590,39 +594,11 @@
 
     // ── Reset modal saat ditutup ─────────────────────────────────────
     document.getElementById('bookingModal').addEventListener('hidden.bs.modal', function () {
-        // Jika modal ditutup karena mau buka Snap Midtrans → jangan reload
-        if (window._bookingGoingToSnap) return;
+        // Kembalikan body modal ke konten awal (penting jika showSuccess mengganti innerHTML)
+        location.reload();
 
-        // User tutup modal manual (bukan karena snap) → reset semua field
-        ['b_customer_name', 'b_phone_number', 'b_session_date'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) { el.value = ''; el.classList.remove('is-invalid'); }
-        });
-        ['b_product_id', 'b_session_time'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) { el.selectedIndex = 0; el.classList.remove('is-invalid'); }
-        });
-
-        const packetSelect = document.getElementById('b_packet_id');
-        if (packetSelect) {
-            packetSelect.innerHTML = '<option value="" data-price="0" disabled selected>-- Pilih Paket --</option>';
-            packetSelect.disabled = true;
-        }
-
-        const priceSummary = document.getElementById('booking-price-summary');
-        if (priceSummary) priceSummary.classList.add('d-none');
-
-        const loadingEl = document.getElementById('booking-loading');
-        if (loadingEl) loadingEl.classList.add('d-none');
-
-        const actionEl = document.getElementById('booking-action-btns');
-        if (actionEl) actionEl.classList.remove('d-none');
-
-        const closeBtn = document.getElementById('bookingCloseBtn');
-        if (closeBtn) closeBtn.disabled = false;
-
-        // Kembali ke step 1
-        if (typeof bookingNextStep === 'function') bookingNextStep(1);
+        // Catatan: jika tidak ingin reload halaman, bisa simpan HTML awal ke variabel
+        // dan restore di sini. Tapi reload lebih simpel dan aman.
     });
 
 })();

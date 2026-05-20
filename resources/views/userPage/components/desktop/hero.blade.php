@@ -1,9 +1,8 @@
-<section class="bg-secondary position-relative overflow-hidden mx-3 mx-md-4 mx-lg-5 mt-4 rounded-4"
+<section id="booking" class="bg-secondary position-relative overflow-hidden mx-3 mx-md-4 mx-lg-5 mt-4 rounded-4"
     style="height: 90vh;">
 
-    <img src="{{ asset('images/studio.jpg') }}"
-         class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover"
-         alt="Studio Foto">
+    <img src="{{ asset('images/backgroundStudio.jpg') }}" alt="Studio Foto"
+         class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover">
 
     <div class="position-absolute top-0 start-0 w-100 h-100"
          style="background: linear-gradient(to right, rgba(0,0,0,0.70), rgba(0,0,0,0.40), transparent);">
@@ -53,15 +52,10 @@
                     Booking Sekarang
 
                 </button>
-
-                <a href="#layanan"
-                   class="btn rounded-pill px-4 py-2 fw-semibold text-white"
-                   style="border:1px solid rgba(255,255,255,0.5);">
-
-                    Lihat Layanan
-
-                </a>
-
+<a class="btn btn-outline-dark text-white rounded-pill px-4 py-2 fw-semibold" 
+        href="#paket">  
+    Lihat Layanan
+</a>
             </div>
 
         </div>
@@ -69,3 +63,4 @@
     </div>
 
 </section>
+
