@@ -1,5 +1,5 @@
-@extends('layouts.app')
-
+@extends('userPage.layouts.app')
+@section('title', 'Pembayaran Gagal')
 @section('content')
 <div class="container mx-auto px-4 py-8">
     <div class="max-w-md mx-auto">

@@ -7,10 +7,14 @@
                      ambil Snap Token → popup Midtrans
 
     Cara pakai:
-    1. @include('booking.modal') di landing page
+    1. @include('userPage.modal.booking-modal') di index.blade.php
     2. Inject $packets dari controller halaman tersebut
     3. Tombol trigger: data-bs-toggle="modal" data-bs-target="#bookingModal"
     4. Pastikan layout punya: <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    Preselect dari product-detail-modal:
+    - bookingPreselect(productId, packetId) dipanggil otomatis dari goToBooking()
+    - Produk & paket langsung terisi, user tinggal isi jadwal di step 2
     =====================================================================
 --}}
 
@@ -29,7 +33,7 @@
                     <h5 class="modal-title fw-bold mb-0">
                         <i class="mdi mdi-camera-outline text-success me-2"></i>Booking Sesi Foto
                     </h5>
-                    <p class="text-muted small mb-0 mt-1">
+                    <p class="text-muted small mb-0 mt-1" id="booking-modal-subtitle">
                         Isi data di bawah untuk melakukan booking sesi foto
                     </p>
                 </div>
@@ -65,8 +69,28 @@
 
                 {{-- ════════════ STEP 1 : Data Diri ════════════ --}}
                 <div id="booking-step-1">
-                    <div class="row g-3">
 
+                    {{-- Banner paket terpilih (muncul jika datang dari product detail modal) --}}
+                    <div id="booking-preselect-banner" class="d-none mb-4">
+                        <div class="alert border-0 rounded-3 py-3 mb-0"
+                             style="background: #f0f4ff; border-left: 4px solid #0f3460 !important;">
+                            <div class="d-flex align-items-center gap-3">
+                                <div style="width: 40px; height: 40px; border-radius: 50%;
+                                            background: #0f3460; display: flex; align-items: center;
+                                            justify-content: center; flex-shrink: 0;">
+                                    <i class="mdi mdi-check" style="color: white; font-size: 20px;"></i>
+                                </div>
+                                <div>
+                                    <p class="mb-0 fw-semibold" style="color: #0f3460; font-size: 14px;">
+                                        Paket sudah dipilih
+                                    </p>
+                                    <p class="mb-0 text-muted small" id="banner-packet-info">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label fw-semibold">
                                 Nama Lengkap <span class="text-danger">*</span>
@@ -99,7 +123,6 @@
                                 Nomor tidak valid. Gunakan format 08xxxxxxxxxx.
                             </div>
                         </div>
-
                     </div>
 
                     <div class="d-grid mt-4">
@@ -109,6 +132,7 @@
                         </button>
                     </div>
                 </div>
+                {{-- /STEP 1 --}}
 
                 {{-- ════════════ STEP 2 : Pilih Paket & Jadwal ════════════ --}}
                 <div id="booking-step-2" class="d-none">
@@ -207,6 +231,7 @@
                         </button>
                     </div>
                 </div>
+                {{-- /STEP 2 --}}
 
                 {{-- ════════════ STEP 3 : Konfirmasi & Simpan ════════════ --}}
                 <div id="booking-step-3" class="d-none">
@@ -338,31 +363,61 @@
 
 {{-- ═══════════════════════════════════════════════════════════════════
      JAVASCRIPT
-     ─ Saat ini : POST /booking → simpan transaksi → tampil pesan sukses
-     ─ Nanti (aktifkan Midtrans):
-         1. POST /booking          → dapat transaksi_id
-         2. POST /payment/snap-token (kirim transaksi_id) → dapat snap_token
-         3. snap.pay(snap_token)   → popup Midtrans
-         Tandai bagian [MIDTRANS] di bawah
 ═══════════════════════════════════════════════════════════════════ --}}
 <script>
 (function () {
     'use strict';
 
-    // Data paket dari server (dipakai isi dropdown)
     const productPackets = {!! json_encode($packets) !!};
 
     const formatRp = (n) =>
-        new Intl.NumberFormat('id-ID', { style:'currency', currency:'IDR', minimumFractionDigits:0 }).format(n);
+        new Intl.NumberFormat('id-ID', {
+            style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+        }).format(n);
 
     const formatDate = (s) => s
-        ? new Intl.DateTimeFormat('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
-              .format(new Date(s))
+        ? new Intl.DateTimeFormat('id-ID', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+          }).format(new Date(s))
         : '-';
 
     // Set tanggal minimum = hari ini
     document.getElementById('b_session_date')
             .setAttribute('min', new Date().toISOString().split('T')[0]);
+
+    // ── Preselect produk & paket dari product-detail-modal ──────────
+    // Dipanggil otomatis oleh goToBooking() di product-detail-modal
+    window.bookingPreselect = function (productId, packetId) {
+        const productSel = document.getElementById('b_product_id');
+
+        // Set nilai produk
+        productSel.value = productId;
+
+        // Trigger update dropdown paket
+        bookingUpdatePackets();
+
+        // Tunggu dropdown paket terisi, lalu set paket
+        setTimeout(() => {
+            const packetSel = document.getElementById('b_packet_id');
+            packetSel.value = packetId;
+
+            // Trigger update harga
+            bookingUpdatePrice();
+
+            // Tampilkan banner paket terpilih di step 1
+            const productName = productSel.options[productSel.selectedIndex]?.dataset.productName ?? '';
+            const packetName  = packetSel.options[packetSel.selectedIndex]?.dataset.name ?? '';
+            const packetPrice = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
+
+            const banner = document.getElementById('booking-preselect-banner');
+            const info   = document.getElementById('banner-packet-info');
+
+            if (banner && info && packetName) {
+                info.textContent = `${productName} — ${packetName} · ${formatRp(packetPrice)}`;
+                banner.classList.remove('d-none');
+            }
+        }, 50);
+    };
 
     // ── Step navigation ──────────────────────────────────────────────
     window.bookingNextStep = function (step) {
@@ -440,8 +495,8 @@
         if (!name || !productPackets[name]) return;
 
         productPackets[name].forEach(p => {
-            const opt        = document.createElement('option');
-            opt.value        = p.id;
+            const opt         = document.createElement('option');
+            opt.value         = p.id;
             opt.dataset.price = p.price;
             opt.dataset.name  = p.name;
             opt.textContent   = `${p.name} — ${formatRp(p.price)}`;
@@ -473,7 +528,7 @@
 
         document.getElementById('confirm_name').textContent    = document.getElementById('b_customer_name').value;
         document.getElementById('confirm_phone').textContent   = document.getElementById('b_phone_number').value;
-        document.getElementById('confirm_product').textContent = productSel.options[productSel.selectedIndex]?.text || '-';
+        document.getElementById('confirm_product').textContent = productSel.options[productSel.selectedIndex]?.dataset.productName || '-';
         document.getElementById('confirm_packet').textContent  = packetSel.options[packetSel.selectedIndex]?.dataset.name || '-';
         document.getElementById('confirm_date').textContent    = formatDate(document.getElementById('b_session_date').value);
         document.getElementById('confirm_time').textContent    = document.getElementById('b_session_time').value + ' WIB';
@@ -500,7 +555,6 @@
         };
 
         try {
-            // ── STEP 1: Validasi + buat Snap Token (data belum ke DB) ─
             const snapRes = await fetch('{{ route("booking.snap-token") }}', {
                 method  : 'POST',
                 headers : {
@@ -520,8 +574,6 @@
                 throw new Error(errMsg);
             }
 
-            // ── STEP 2: Sembunyikan modal, buka popup Midtrans ────────
-            // Data baru masuk DB setelah Midtrans konfirmasi via webhook
             const bsModal = bootstrap.Modal.getInstance(document.getElementById('bookingModal'));
             window._bookingGoingToSnap = true;
             bsModal.hide();
@@ -540,7 +592,6 @@
                     window.location.href = `{{ route("payment.failed") }}?order_id=${r.order_id}`;
                 },
                 onClose   : () => {
-                    // User tutup popup tanpa bayar → buka modal lagi
                     window._bookingGoingToSnap = false;
                     bsModal.show();
                     loadingEl.classList.add('d-none');
@@ -557,25 +608,7 @@
         }
     };
 
-    // ── Tampilkan pesan sukses di dalam modal (tanpa redirect) ───────
-    function showSuccess(name, phone) {
-        document.getElementById('booking-modal-body').innerHTML = `
-            <div class="text-center py-4">
-                <i class="mdi mdi-check-circle text-success" style="font-size:72px"></i>
-                <h4 class="fw-bold mt-3 mb-2">Booking Berhasil!</h4>
-                <p class="text-muted mb-1">Terima kasih, <strong>${name}</strong>!</p>
-                <p class="text-muted mb-4">
-                    Tim kami akan menghubungi Anda di nomor<br>
-                    <strong>${phone}</strong> untuk konfirmasi lebih lanjut.
-                </p>
-                <button class="btn btn-success rounded-pill px-5" data-bs-dismiss="modal">
-                    Tutup
-                </button>
-            </div>
-        `;
-    }
-
-    // ── Tampilkan error di dalam modal (bukan alert) ─────────────────
+    // ── Tampilkan error inline ───────────────────────────────────────
     function showInlineError(message) {
         const existing = document.getElementById('booking-inline-error');
         if (existing) existing.remove();
@@ -590,10 +623,9 @@
 
     // ── Reset modal saat ditutup ─────────────────────────────────────
     document.getElementById('bookingModal').addEventListener('hidden.bs.modal', function () {
-        // Jika modal ditutup karena mau buka Snap Midtrans → jangan reload
         if (window._bookingGoingToSnap) return;
 
-        // User tutup modal manual (bukan karena snap) → reset semua field
+        // Reset semua field
         ['b_customer_name', 'b_phone_number', 'b_session_date'].forEach(id => {
             const el = document.getElementById(id);
             if (el) { el.value = ''; el.classList.remove('is-invalid'); }
@@ -606,8 +638,12 @@
         const packetSelect = document.getElementById('b_packet_id');
         if (packetSelect) {
             packetSelect.innerHTML = '<option value="" data-price="0" disabled selected>-- Pilih Paket --</option>';
-            packetSelect.disabled = true;
+            packetSelect.disabled  = true;
         }
+
+        // Sembunyikan banner preselect
+        const banner = document.getElementById('booking-preselect-banner');
+        if (banner) banner.classList.add('d-none');
 
         const priceSummary = document.getElementById('booking-price-summary');
         if (priceSummary) priceSummary.classList.add('d-none');
@@ -620,6 +656,9 @@
 
         const closeBtn = document.getElementById('bookingCloseBtn');
         if (closeBtn) closeBtn.disabled = false;
+
+        const inlineErr = document.getElementById('booking-inline-error');
+        if (inlineErr) inlineErr.remove();
 
         // Kembali ke step 1
         if (typeof bookingNextStep === 'function') bookingNextStep(1);

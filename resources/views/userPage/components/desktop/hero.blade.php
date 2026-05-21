@@ -1,5 +1,5 @@
-<section id="booking" class="bg-secondary position-relative overflow-hidden mx-3 mx-md-4 mx-lg-5 mt-4 rounded-4"
-    style="height: 90vh;">
+<section id="booking" class="bg-secondary position-relative overflow-hidden mx-3 mx-md-4 mx-lg-5 mt-4 mb-4 rounded-4"
+    style="height: 85vh;">
 
     <img src="{{ asset('images/backgroundStudio.jpg') }}" alt="Studio Foto"
          class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover">

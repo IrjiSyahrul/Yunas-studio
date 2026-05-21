@@ -1,6 +1,6 @@
 <!-- Cara Booking -->
 <section id="cara-booking" class="desktop-only py-5 bg-light">
-    <div class="container py-4">
+    <div class="container py-5">
 
         <!-- Heading -->
         <div class="text-center mb-5">

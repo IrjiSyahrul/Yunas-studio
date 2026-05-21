@@ -47,7 +47,7 @@
 
             .mobile-bottom-nav a.active,
             .mobile-bottom-nav a:hover {
-                color: #198754;
+                color: #23315e;
             }
 
             .mobile-bottom-nav a i {
@@ -59,7 +59,7 @@
                 position: sticky;
                 top: 0;
                 z-index: 1040;
-                background: #198754;
+                background: #414141;
                 padding: 12px 16px;
             }
 

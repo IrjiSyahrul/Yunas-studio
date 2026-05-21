@@ -1,174 +1,173 @@
-{{-- ═══════════════════════════════════════════════════════════════════════
-     PRODUCT DETAIL MODAL — Custom Overlay (tidak pakai Bootstrap Modal)
-     Dipanggil via: showProductDetail(productId)
-═══════════════════════════════════════════════════════════════════════ --}}
+{{--
+    =====================================================================
+    PRODUCT DETAIL MODAL — Universal (Mobile & Desktop)
+    =====================================================================
+    Cara pakai:
+    1. @include('userPage.modal.product-detail-modal') di index.blade.php
+    2. Tombol trigger: onclick="showProductDetail(ID_PRODUK)"
+    3. Pastikan $packets dan $products tersedia dari controller
+    =====================================================================
+--}}
 
-{{-- Overlay --}}
-<div id="productDetailOverlay"
-     onclick="if(event.target===this) closeProductDetail()"
-     style="
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 99999;
-        align-items: center;
-        justify-content: center;
-        padding: 16px;
-     ">
+{{-- ===== MODAL ===== --}}
+<div class="modal fade" id="productDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 overflow-hidden" style="border-radius: 20px;">
 
-    {{-- Dialog --}}
-    <div style="
-            background: #fff;
-            border-radius: 16px;
-            width: 100%;
-            max-width: 500px;
-            max-height: 90vh;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            animation: pdSlideUp .25s ease;
-         ">
-
-        {{-- Header --}}
-        <div style="padding: 20px 20px 12px; border-bottom: 1px solid #f0f0f0; flex-shrink: 0;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            {{-- Hero Header --}}
+            <div class="position-relative d-flex align-items-end p-4"
+                 style="min-height: 140px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
+                <button type="button"
+                        class="btn-close btn-close-white position-absolute top-0 end-0 m-3"
+                        data-bs-dismiss="modal"></button>
                 <div>
-                    <div style="font-size:17px; font-weight:700; color:#212529;" id="pdProductName">
-                        Detail Produk
-                    </div>
-                    <div style="font-size:13px; color:#6c757d; margin-top:2px;">
-                        Pilih paket yang sesuai kebutuhan Anda
-                    </div>
+                    <span class="badge rounded-pill mb-2 px-3 py-2"
+                          style="background: rgba(255,255,255,0.15);
+                                 border: 0.5px solid rgba(255,255,255,0.2);
+                                 font-size: 0.65rem; letter-spacing: 0.08em;
+                                 color: rgba(255,255,255,0.85);">
+                        Paket Studio
+                    </span>
+                    <h3 class="text-white fw-semibold mb-0" id="modal-product-name">-</h3>
                 </div>
-                <button onclick="closeProductDetail()"
-                        style="background:none; border:none; font-size:20px; color:#6c757d; cursor:pointer; padding:0; line-height:1;">
-                    ✕
+            </div>
+
+            {{-- Body --}}
+            <div class="modal-body p-4">
+                <p class="text-muted small mb-4" id="modal-product-desc">-</p>
+
+                <p class="text-uppercase fw-semibold mb-3"
+                   style="font-size: 0.65rem; letter-spacing: 0.1em; color: #999;">
+                    Pilih Paket
+                </p>
+
+                <div id="modal-packets-list">
+                    {{-- Diisi JavaScript --}}
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="modal-footer border-0 px-4 pb-4 pt-0 gap-2">
+                <button type="button"
+                        class="btn btn-outline-secondary rounded-pill px-4"
+                        data-bs-dismiss="modal">
+                    Tutup
+                </button>
+                <button type="button"
+                        class="btn flex-grow-1 rounded-pill fw-semibold"
+                        id="modal-book-btn"
+                        style="background: #0f3460; color: white;"
+                        onclick="goToBooking()"
+                        disabled>
+                    Pilih paket dulu
                 </button>
             </div>
-        </div>
 
-        {{-- Body --}}
-        <div id="pdBody"
-             style="overflow-y: auto; padding: 16px 20px; flex: 1;">
-            {{-- Diisi JavaScript --}}
         </div>
-
-        {{-- Footer --}}
-        <div style="padding: 12px 20px 20px; border-top: 1px solid #f0f0f0; flex-shrink:0; display:flex; gap:10px;">
-            <button onclick="closeProductDetail()"
-                    style="
-                        border: 1px solid #dee2e6;
-                        background: #fff;
-                        color: #6c757d;
-                        border-radius: 50px;
-                        padding: 10px 20px;
-                        font-size: 14px;
-                        cursor: pointer;
-                    ">
-                Tutup
-            </button>
-            <button id="pdBookBtn"
-                    onclick="goToBooking()"
-                    disabled
-                    style="
-                        flex: 1;
-                        background: #198754;
-                        color: #fff;
-                        border: none;
-                        border-radius: 50px;
-                        padding: 10px 20px;
-                        font-size: 14px;
-                        font-weight: 600;
-                        cursor: pointer;
-                        opacity: 0.6;
-                    ">
-                Pilih paket dulu
-            </button>
-        </div>
-
     </div>
 </div>
 
-{{-- ═══ CSS ═══ --}}
+{{-- ===== CSS ===== --}}
 <style>
-    @keyframes pdSlideUp {
-        from { transform: translateY(30px); opacity: 0; }
-        to   { transform: translateY(0);    opacity: 1; }
-    }
-    .pd-packet-card {
-        border: 2px solid #e9ecef;
-        border-radius: 12px;
-        padding: 14px 16px;
+    .packet-item {
+        border: 1.5px solid #e9ecef;
+        border-radius: 14px;
+        padding: 16px;
         cursor: pointer;
-        transition: all .2s ease;
-        position: relative;
+        transition: all 0.2s ease;
         margin-bottom: 12px;
+        position: relative;
     }
-    .pd-packet-card:hover {
-        border-color: #198754;
-        background: #f8fff9;
+    .packet-item:hover {
+        border-color: #0f3460;
+        background: #f8f9ff;
     }
-    .pd-packet-card.selected {
-        border-color: #198754;
-        background: #f0fdf4;
+    .packet-item.selected {
+        border-color: #0f3460;
+        background: #f0f4ff;
     }
-    .pd-packet-card.selected::after {
-        content: '✓';
-        position: absolute;
-        top: 12px; right: 14px;
-        color: #198754;
-        font-weight: 700;
-        font-size: 16px;
+    .packet-item.selected .packet-check-icon {
+        opacity: 1;
     }
-    .pd-price-badge {
-        background: #198754;
+    .packet-check-icon {
+        opacity: 0;
+        transition: opacity 0.15s;
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        background: #0f3460;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .packet-price-badge {
+        background: #0f3460;
         color: white;
         border-radius: 20px;
-        padding: 2px 12px;
+        padding: 4px 14px;
         font-size: 13px;
         font-weight: 600;
+        white-space: nowrap;
     }
-    .pd-feature-list {
+    .packet-feature-list {
         list-style: none;
-        padding: 0; margin: 8px 0 0;
+        padding: 0; margin: 10px 0 0;
     }
-    .pd-feature-list li {
-        font-size: 12px;
-        color: #6c757d;
+    .packet-feature-list li {
+        font-size: 12px; color: #6c757d;
         padding: 2px 0;
+        display: flex; align-items: flex-start; gap: 6px;
     }
-    .pd-feature-list li::before {
-        content: '✓ ';
-        color: #198754;
-        font-weight: 600;
+    .packet-feature-list li::before {
+        content: '✓';
+        color: #0f3460;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+    .packet-tier-badge {
+        font-size: 0.6rem; font-weight: 600;
+        padding: 3px 10px; border-radius: 20px;
+        letter-spacing: 0.05em;
     }
 </style>
 
-{{-- ═══ JAVASCRIPT ═══ --}}
+{{-- ===== SCRIPT UNIVERSAL ===== --}}
 <script>
 (function () {
     'use strict';
 
-    const allPackets = {!! json_encode($packets) !!};
+    const allPackets  = {!! json_encode($packets) !!};
+    const allProducts = @json($products->toArray());
 
-    let selectedProductId   = null;
-    let selectedProductName = null;
-    let selectedPacketId    = null;
+    // State yang akan dikirim ke booking modal
+    let selectedProductId  = null;
+    let selectedPacketId   = null;
+    let selectedPacketName = null;
+
+    const TIER_STYLES = {
+        'Bronze':   { bg: '#f5ede0', color: '#7d4f1a' },
+        'Silver':   { bg: '#eef0f5', color: '#4a5568' },
+        'Gold':     { bg: '#fef6d9', color: '#7a5c00' },
+        'Platinum': { bg: '#e8f0fe', color: '#1a4494' },
+        'Diamond':  { bg: '#eef7f5', color: '#0e5a46' },
+    };
 
     const formatRp = (n) =>
-        new Intl.NumberFormat('id-ID', { style:'currency', currency:'IDR', minimumFractionDigits:0 }).format(n);
+        new Intl.NumberFormat('id-ID', {
+            style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+        }).format(n);
 
-        window.showProductDetail = function (productId) {
-    console.log('showProductDetail dipanggil dengan id:', productId);
-    console.log('allPackets:', allPackets);
-    // ── Buka overlay ────────────────────────────────────────────────────
+    // ── Buka modal detail produk ─────────────────────────────────────
     window.showProductDetail = function (productId) {
 
-        // Cari paket berdasarkan product_id
+        // Reset state
+        selectedProductId  = productId;
+        selectedPacketId   = null;
+        selectedPacketName = null;
+
+        // Cari data produk & paket
         let productName = null;
         let packetList  = null;
 
+        // Cari dari allPackets (grouped by product name)
         for (const [name, group] of Object.entries(allPackets)) {
             if (String(group[0].product_id) === String(productId)) {
                 productName = name;
@@ -177,112 +176,132 @@
             }
         }
 
+        // Fallback: cari dari allProducts (with eager loaded packets)
         if (!packetList) {
-            alert('Paket tidak ditemukan.');
-            return;
+            const product = allProducts.find(p => p.id == productId);
+            if (product) {
+                productName = product.name;
+                packetList  = product.packets ?? [];
+            }
         }
 
-        selectedProductId   = productId;
-        selectedProductName = productName;
-        selectedPacketId    = null;
+        if (!packetList) return;
 
-        // Set judul
-        document.getElementById('pdProductName').textContent = productName;
+        // Isi header modal
+        document.getElementById('modal-product-name').textContent = productName;
 
-        // Reset tombol
-        const bookBtn = document.getElementById('pdBookBtn');
-        bookBtn.disabled = true;
-        bookBtn.style.opacity = '0.6';
+        // Isi deskripsi produk
+        const product = allProducts.find(p => p.id == productId);
+        document.getElementById('modal-product-desc').textContent =
+            product?.description ?? '';
+
+        // Reset tombol booking
+        const bookBtn = document.getElementById('modal-book-btn');
+        bookBtn.disabled    = true;
         bookBtn.textContent = 'Pilih paket dulu';
 
-        // Render paket
-        const body = document.getElementById('pdBody');
-        body.innerHTML = '';
+        // Render daftar paket
+        const list = document.getElementById('modal-packets-list');
+        list.innerHTML = '';
 
         if (packetList.length === 0) {
-            body.innerHTML = '<p style="text-align:center;color:#6c757d;padding:20px 0;">Belum ada paket tersedia.</p>';
+            list.innerHTML = '<p class="text-muted text-center py-3">Belum ada paket tersedia.</p>';
         } else {
             packetList.forEach(packet => {
-                const card = document.createElement('div');
-                card.className = 'pd-packet-card';
-                card.dataset.id   = packet.id;
-                card.dataset.name = packet.name;
+                const tier  = TIER_STYLES[packet.name] ?? { bg: '#eef0f5', color: '#4a5568' };
+                const lines = (packet.description ?? '').split('\n').filter(l => l.trim());
 
-                const features = packet.description
-                    ? `<ul class="pd-feature-list">
-                           ${packet.description.split('\n').filter(l => l.trim()).map(l => `<li>${l.trim()}</li>`).join('')}
-                       </ul>`
-                    : '';
+                const item = document.createElement('div');
+                item.className      = 'packet-item';
+                item.dataset.id     = packet.id;
+                item.dataset.name   = packet.name;
+                item.dataset.price  = packet.price;
 
-                card.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                        <div style="font-weight:700; font-size:15px;">${packet.name}</div>
-                        <span class="pd-price-badge ms-2">${formatRp(packet.price)}</span>
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <div class="fw-bold" style="font-size:15px;">${packet.name}</div>
+                            <span class="packet-tier-badge"
+                                  style="background:${tier.bg}; color:${tier.color};">
+                                ${packet.name}
+                            </span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                            <span class="packet-price-badge">${formatRp(packet.price)}</span>
+                            <div class="packet-check-icon">
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="white" stroke-width="2"
+                                          stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                        </div>
                     </div>
-                    ${features}
+                    ${lines.length ? `
+                        <ul class="packet-feature-list mt-2">
+                            ${lines.map(l => `<li>${l.trim()}</li>`).join('')}
+                        </ul>` : ''}
+                    <div class="mt-2 text-muted" style="font-size:11px;">
+                        Max ${packet.max_photos_for_edit} foto editing
+                    </div>
                 `;
 
-                card.addEventListener('click', function () {
-                    body.querySelectorAll('.pd-packet-card').forEach(c => c.classList.remove('selected'));
+                item.addEventListener('click', function () {
+                    // Deselect semua, select yang diklik
+                    list.querySelectorAll('.packet-item').forEach(c => c.classList.remove('selected'));
                     this.classList.add('selected');
-                    selectedPacketId = this.dataset.id;
 
-                    bookBtn.disabled = false;
-                    bookBtn.style.opacity = '1';
-                    bookBtn.textContent = `Booking — ${this.dataset.name}`;
+                    selectedPacketId   = this.dataset.id;
+                    selectedPacketName = this.dataset.name;
+                    const harga        = formatRp(this.dataset.price);
+
+                    // Aktifkan tombol booking
+                    bookBtn.disabled    = false;
+                    bookBtn.textContent = `Booking — ${selectedPacketName} · ${harga}`;
                 });
 
-                body.appendChild(card);
+                list.appendChild(item);
             });
         }
 
-        // Tampilkan overlay
-        const overlay = document.getElementById('productDetailOverlay');
-        overlay.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
+        // Buka modal
+        const modalEl = document.getElementById('productDetailModal');
+        const modal   = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
     };
 
-    // ── Tutup overlay ───────────────────────────────────────────────────
-    window.closeProductDetail = function () {
-        document.getElementById('productDetailOverlay').style.display = 'none';
-        document.body.style.overflow = '';
-    };
-
-    // Tutup dengan tombol Escape
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') closeProductDetail();
-    });
-
-    // ── Pindah ke modal booking ─────────────────────────────────────────
+    // ── Pindah ke booking modal dengan data terpreselect ────────────
     window.goToBooking = function () {
-        if (!selectedProductId) return;
+        if (!selectedPacketId) return;
 
-        closeProductDetail();
+        // Tutup modal detail
+        const detailModalEl = document.getElementById('productDetailModal');
+        const detailModal   = bootstrap.Modal.getInstance(detailModalEl);
+        detailModal?.hide();
 
-        // Tunggu overlay tutup, baru buka booking modal
-        setTimeout(() => {
-            const bookingModal = new bootstrap.Modal(document.getElementById('bookingModal'));
+        // Setelah modal detail selesai tutup, buka booking modal
+        detailModalEl.addEventListener('hidden.bs.modal', function handler() {
+            this.removeEventListener('hidden.bs.modal', handler);
+
+            const bookingModalEl = document.getElementById('bookingModal');
+            const bookingModal   = new bootstrap.Modal(bookingModalEl);
             bookingModal.show();
 
-            document.getElementById('bookingModal').addEventListener('shown.bs.modal', function onShown() {
+            // Setelah booking modal terbuka, preselect & langsung ke step 1
+            bookingModalEl.addEventListener('shown.bs.modal', function onShown() {
                 this.removeEventListener('shown.bs.modal', onShown);
 
-                const productSelect = document.getElementById('b_product_id');
-                productSelect.value = selectedProductId;
-                productSelect.dispatchEvent(new Event('change'));
-
-                if (selectedPacketId) {
-                    setTimeout(() => {
-                        const packetSelect = document.getElementById('b_packet_id');
-                        packetSelect.value = selectedPacketId;
-                        packetSelect.dispatchEvent(new Event('change'));
-                    }, 100);
+                // Preselect produk & paket di background
+                if (typeof bookingPreselect === 'function') {
+                    bookingPreselect(selectedProductId, selectedPacketId);
                 }
 
-                bookingNextStep(2);
+                // Mulai dari step 1 (isi biodata dulu)
+                if (typeof bookingNextStep === 'function') {
+                    bookingNextStep(1);
+                }
             });
-        }, 100);
+        });
     };
-        }
+
 })();
 </script>

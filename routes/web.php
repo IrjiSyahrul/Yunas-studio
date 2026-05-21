@@ -17,37 +17,37 @@ use App\Http\Controllers\AdditionalDefaultController;
 use App\Http\Controllers\User\PaymentController;
 use App\Http\Controllers\User\BookingController;
 
-    Route::get('/user', [UserHomeController::class, 'index'])
+Route::get('/', [UserHomeController::class, 'index'])
     ->name('userPage.home');
-  
+Route::get('/product/{id}', [HomeController::class, 'product'])->name('product.filter');
+Route::get(
+    '/booking/{order_id}/download-pdf',
+    [BookingController::class, 'downloadPdf']
+)
+    ->where('order_id', '.*')
+    ->name('booking.download.pdf');
 
-
-/*
-|--------------------------------------------------------------------------
-| Web Routess
-|--------------------------------------------------------------------------
-*/
 
 // ── Payment (Midtrans) ───────────────────────────────────────────────────
 // ── Booking: validasi form + buat Snap Token (tidak simpan ke DB) ─────────
 Route::post('/booking/snap-token', [BookingController::class, 'createSnapToken'])->name('booking.snap-token');
- 
+
 // ── Payment redirect pages ────────────────────────────────────────────────
 Route::get('/payment/success', [PaymentController::class, 'paymentSuccess'])->name('payment.success');
-Route::get('/payment/failed',  [PaymentController::class, 'paymentFailed'])->name('payment.failed');
- 
+Route::get('/payment/failed', [PaymentController::class, 'paymentFailed'])->name('payment.failed');
+
 // ── Webhook Midtrans — HARUS exempt CSRF ─────────────────────────────────
 // Tambahkan 'payment/webhook' ke App\Http\Middleware\VerifyCsrfToken@$except
 Route::post('/payment/webhook', [PaymentController::class, 'handleWebhook'])->name('payment.webhook');
 
 
 
-    Auth::routes();
+Auth::routes();
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/', [HomeController::class, 'root']);
+    //Route::get('/', [HomeController::class, 'root']);
     Route::get('/dashboard', [HomeController::class, 'index'])->name('dashboard');
-  
+
     // User Management
     Route::resource('users', UserController::class);
     Route::put('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
@@ -73,7 +73,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('expense-categories', ExpenseCategoryController::class);
     Route::put('/expense-categories/{expenseCategory}/toggle-monthly-default', [ExpenseCategoryController::class, 'toggleMonthlyDefault'])->name('expense-categories.toggle-monthly-default');
     Route::post('/expenses/generate-monthly', [ExpenseController::class, 'generateMonthlyExpenses'])->name('expenses.generate-monthly');
-    
+
     // Transaksi
     Route::resource('transaksi', TransaksiController::class);
     Route::put('/transaksi/{id}/update-status', [TransaksiController::class, 'updateStatus'])->name('transaksi.update-status');
@@ -85,10 +85,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/handle-select-for-print', [TransaksiController::class, 'handleSelectForPrint'])->name('handle-select-for-print');
         Route::get('/result-photos', [TransaksiController::class, 'viewResultPhotos'])->name('view-result-photos');
         Route::get('/download-invoice', [TransaksiController::class, 'downloadInvoice'])->name('download-invoice');
-        
+
         // Route View Selections lama (tetap ada jika dibutuhkan via URL, tapi button dihapus di view)
         Route::get('/view-selections', [TransaksiController::class, 'viewSelectionsForAdmin'])->name('view-selections');
-        
+
         // Route BARU untuk update inputan manual dari WA
         Route::put('/update-selections', [TransaksiController::class, 'updateSelections'])->name('update-selections');
 

@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+ use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\Booking;
 
 class BookingController extends Controller
 {
@@ -125,4 +127,26 @@ class BookingController extends Controller
             ], 500);
         }
     }
+
+   
+
+public function downloadPdf($order_id)
+{
+    $booking = Transaksi::with([
+        'packet.product',
+        'packet.printOptions',
+        'additionals'
+    ])
+    ->where('order_id', $order_id)
+    ->firstOrFail();
+
+    $transaksi = $booking;
+
+    $pdf = Pdf::loadView('invoices.template', compact('transaksi'))
+        ->setPaper('a4', 'portrait');
+
+    $fileName = str_replace('/', '-', $booking->order_id);
+
+    return $pdf->download('invoice-booking-' . $fileName . '.pdf');
+}
 }

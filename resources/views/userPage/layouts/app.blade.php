@@ -42,7 +42,7 @@
 
         body {
             font-family: 'Figtree', sans-serif;
-            background: #f5f5f5;
+            background: #f0f0f0;
         }
 
         .object-fit-cover {

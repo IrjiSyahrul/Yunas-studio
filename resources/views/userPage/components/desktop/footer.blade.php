@@ -8,7 +8,7 @@
     }
 </style>
 
-<footer class="desktop-only mt-5 border-top"
+<footer class="desktop-only"
     style="background: #111827;">
 
     <div class="container py-5">
