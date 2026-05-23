@@ -19,6 +19,10 @@
     {{-- Alpine --}}
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
+    {{-- Material Design Icons --}}
+    <link rel="stylesheet" 
+      href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+
     {{-- Midtrans Snap.js --}}
     <script src="{{ config('midtrans.is_production')
     ? 'https://app.midtrans.com/snap/snap.js'

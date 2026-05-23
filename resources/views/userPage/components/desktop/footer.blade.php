@@ -62,7 +62,7 @@
                 <h5 class="fw-semibold mb-3 text-white">Kontak</h5>
 
                 <p class="text-light small opacity-75 mb-2">
-                    Monday - Sunday : 10.00 - 22.00
+                    Monday - Sunday : 10.00 - 18.00 WIB
                 </p>
 
                 <p class="text-light small opacity-75 mb-2">
@@ -70,7 +70,7 @@
                 </p>
 
                 <p class="text-light small opacity-75 mb-2">
-                    📞 0812-3506-3247
+                    📞 0812-3506-3247  
                 </p>
 
                 <p class="text-light small opacity-75 mb-0">

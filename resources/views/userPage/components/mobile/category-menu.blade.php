@@ -9,17 +9,39 @@
      ===================================================================== --}}
 
 {{-- ── Grid Produk ─────────────────────────────────────────────────────── --}}
-<div class="mobile-menu-wrap">
+@php
+    $productIcons = [
+        'Birthday'           => ['icon' => 'mdi-party-popper',       'color' => '#FBEAF0', 'icolor' => '#993556'],
+        'Couple'             => ['icon' => 'mdi-heart-outline',       'color' => '#FAECE7', 'icolor' => '#993C1D'],
+        'Family Cetak'       => ['icon' => 'mdi-account-group',       'color' => '#E1F5EE', 'icolor' => '#0F6E56'],
+        'Family Non Cetak'   => ['icon' => 'mdi-account-multiple',    'color' => '#E1F5EE', 'icolor' => '#0F6E56'],
+        'Graduation Cetak'   => ['icon' => 'mdi-school-outline',      'color' => '#EEEDFE', 'icolor' => '#534AB7'],
+        'Graduation Non Cetak'=> ['icon'=> 'mdi-school',              'color' => '#EEEDFE', 'icolor' => '#534AB7'],
+        'Maternity'          => ['icon' => 'mdi-baby-carriage',       'color' => '#E6F1FB', 'icolor' => '#185FA5'],
+        'Group'              => ['icon' => 'mdi-account-multiple-outline','color'=> '#EAF3DE','icolor'=> '#3B6D11'],
+        'Personal'           => ['icon' => 'mdi-account-circle-outline','color'=> '#FAEEDA','icolor'=> '#854F0B'],
+        'Prawedding'         => ['icon' => 'mdi-ring',                'color' => '#EEEDFE', 'icolor' => '#534AB7'],
+        'Pas Foto'           => ['icon' => 'mdi-card-account-details-outline','color'=>'#F1EFE8','icolor'=>'#5F5E5A'],
+        'Pas Photo'          => ['icon' => 'mdi-card-account-details-outline','color'=>'#F1EFE8','icolor'=>'#5F5E5A'],
+    ];
 
-    <div class="mobile-section-title">
-        Kategori Paket
+    // Fallback jika nama produk tidak ada di mapping
+    $defaultIcon = ['icon' => 'mdi-camera-outline', 'color' => '#F1EFE8', 'icolor' => '#5F5E5A'];
+@endphp
+
+<div class="mobile-menu-wrap">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="mobile-section-title mb-0">Kategori Paket</span>
+        <small style="font-size:11px; color:#6c757d;">Lihat semua →</small>
     </div>
 
     <div class="mobile-menu-grid">
         <div class="row g-3 text-center">
-
             @foreach($packets as $productName => $packetGroup)
-                @php $product = $packetGroup->first()->product; @endphp
+                @php
+                    $product = $packetGroup->first()->product;
+                    $meta    = $productIcons[$productName] ?? $defaultIcon;
+                @endphp
 
                 <div class="col-3">
                     <a href="#"
@@ -27,69 +49,19 @@
                        onclick="showProductDetail('{{ $product->id }}'); return false;"
                        title="{{ $productName }}">
 
-                        <div class="mobile-menu-icon">
-                            @if(!empty($product->icon))
-                                <img src="{{ asset($product->icon) }}" width="28" alt="{{ $productName }}">
-                            @else
-                                <i class="mdi mdi-camera" style="font-size:28px; color:#198754;"></i>
-                            @endif
+                        <div class="mobile-menu-icon"
+                             style="background:{{ $meta['color'] }}; border-radius:16px;">
+                            <i class="mdi {{ $meta['icon'] }}"
+                               style="font-size:26px; color:{{ $meta['icolor'] }};"></i>
                         </div>
 
-                        <small class="d-block text-truncate" style="max-width:70px; margin:0 auto;">
+                        <small class="d-block text-truncate"
+                               style="max-width:70px; margin:0 auto; font-size:10px; color:#343a40;">
                             {{ $productName }}
                         </small>
-
                     </a>
                 </div>
             @endforeach
-
-        </div>
-    </div>
-
-</div>
-
-{{-- ── Modal Detail Produk ──────────────────────────────────────────────── --}}
-<div class="modal fade"
-     id="productDetailModal"
-     tabindex="-1"
-     aria-hidden="true">
-
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content rounded-4 border-0 shadow-lg">
-
-            {{-- Header --}}
-            <div class="modal-header border-0 pb-0 px-4 pt-4">
-                <div>
-                    <h5 class="modal-title fw-bold mb-0" id="productDetailTitle">
-                        <i class="mdi mdi-camera-outline text-success me-2"></i>
-                        <span id="productDetailName">Detail Produk</span>
-                    </h5>
-                    <p class="text-muted small mb-0 mt-1">Pilih paket yang sesuai kebutuhan Anda</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-
-            {{-- Body --}}
-            <div class="modal-body px-4 py-3" id="productDetailBody">
-                {{-- Diisi oleh JavaScript --}}
-            </div>
-
-            {{-- Footer --}}
-            <div class="modal-footer border-0 pt-0 px-4 pb-4">
-                <button type="button"
-                        class="btn btn-outline-secondary rounded-pill px-4"
-                        data-bs-dismiss="modal">
-                    Tutup
-                </button>
-                <button type="button"
-                        class="btn btn-success rounded-pill flex-grow-1"
-                        id="productDetailBookBtn"
-                        onclick="goToBooking()">
-                    <i class="mdi mdi-calendar-check-outline me-1"></i>
-                    Booking Sekarang
-                </button>
-            </div>
-
         </div>
     </div>
 </div>

@@ -19,23 +19,29 @@
         {{-- Product List --}}
         <div class="row g-4">
             @foreach($packets as $productName => $packetGroup)
+                @php
+                    $product = $packetGroup->first()->product;
+                    $imageUrl = $product?->image
+                        ? asset('storage/' . $product->image)
+                        : asset('images/no-image.jpg');
+                @endphp
+
                 <div class="col-md-4">
                     <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100 product-card">
 
                         {{-- Image --}}
                         <div class="overflow-hidden" style="height: 256px;">
-                           <img src="{{ $packetGroup->first()->product->image
-        ? asset('storage/' . $packetGroup->first()->product->image)
-        : asset('images/no-image.jpg') }}"
-     class="card-img-top w-100 h-100 object-fit-cover product-image"
-     alt="{{ $productName }}">
+                            <img src="{{ $imageUrl }}"
+                                class="card-img-top w-100 h-100 object-fit-cover product-image"
+                                alt="{{ $productName }}"
+                                loading="lazy">
                         </div>
 
                         {{-- Body --}}
                         <div class="card-body p-4">
                             <h5 class="card-title fw-semibold mb-2">{{ $productName }}</h5>
                             <p class="card-text text-muted small mb-3">
-                                {{ $packetGroup->first()->product->description ?? '' }}
+                                {{ $product?->description ?? '' }}
                             </p>
                             <button class="btn btn-dark"
                                 onclick="showProductDetail({{ $packetGroup->first()->product_id }}); return false;">

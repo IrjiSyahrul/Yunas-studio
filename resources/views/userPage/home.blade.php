@@ -16,7 +16,7 @@
 
         @include('userPage.components.mobile.category-menu')
 
-
+        @include('userPage.components.mobile.content')
         @include('userPage.layouts.bottom-navbar')
 
     </div>
