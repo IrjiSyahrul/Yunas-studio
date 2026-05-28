@@ -19,7 +19,7 @@
 
                         {{-- Header --}}
                         <div class="p-5 text-center
-                            {{ $isPending ? 'bg-warning-subtle' : 'bg-success-subtle' }}">
+                                {{ $isPending ? 'bg-warning-subtle' : 'bg-success-subtle' }}">
 
                             @if($isPending)
 
@@ -142,16 +142,17 @@
                                     </table>
                                 </div><br>
                                 <a href="{{ route('booking.download.pdf', $booking->order_id) }}"
-    class="btn btn-outline-dark btn-lg rounded-pill">
+                                    class="btn btn-outline-dark btn-lg rounded-pill">
 
-    <i class="bi bi-file-earmark-pdf"></i>
-    Download Invoice PDF
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                    Download Invoice PDF
 
-</a>
+                                </a>
                                 {{-- Button --}}
                                 <div class="d-grid mt-5">
 
-                                    <a href="{{ route('userPage.home') }}" class="btn btn-dark btn-lg rounded-pill py-3 fw-semibold">
+                                    <a href="{{ route('userPage.home') }}"
+                                        class="btn btn-dark btn-lg rounded-pill py-3 fw-semibold">
 
                                         Kembali ke Beranda
 

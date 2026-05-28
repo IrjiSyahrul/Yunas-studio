@@ -17,31 +17,37 @@ use App\Http\Controllers\AdditionalDefaultController;
 use App\Http\Controllers\User\PaymentController;
 use App\Http\Controllers\User\BookingController;
 
-Route::get('/', [UserHomeController::class, 'index'])
-    ->name('userPage.home');
-Route::get('/product/{id}', [HomeController::class, 'product'])->name('product.filter');
-Route::get(
-    '/booking/{order_id}/download-pdf',
-    [BookingController::class, 'downloadPdf']
-)
-    ->where('order_id', '.*')
-    ->name('booking.download.pdf');
+
+// User Page
+    Route::get('/', [UserHomeController::class, 'index'])->name('userPage.home');
+    Route::get('/product/{id}', [HomeController::class, 'product'])->name('product.filter');
+
+    // Booking
+    Route::get('/booking/{order_id}/download-pdf',[BookingController::class, 'downloadPdf'])
+        ->where('order_id', '.*')
+        ->name('booking.download.pdf');
+    Route::get('/booking/available-slots', [BookingController::class, 'availableSlots'])
+    ->name('booking.available-slots');
+
+    //galeri
+    Route::get('/galeri', function () {return view('userPage.galeri');})->name('galeri');
+    Route::get('/kontak', function () {return view('userPage.kontak');})->name('kontak');
 
 
-// ── Payment (Midtrans) ───────────────────────────────────────────────────
-// ── Booking: validasi form + buat Snap Token (tidak simpan ke DB) ─────────
-Route::post('/booking/snap-token', [BookingController::class, 'createSnapToken'])->name('booking.snap-token');
+    // ── Payment (Midtrans) ───────────────────────────────────────────────────
+    Route::post('/booking/snap-token', [BookingController::class, 'createSnapToken'])->name('booking.snap-token');
 
-// ── Payment redirect pages ────────────────────────────────────────────────
-Route::get('/payment/success', [PaymentController::class, 'paymentSuccess'])->name('payment.success');
-Route::get('/payment/failed', [PaymentController::class, 'paymentFailed'])->name('payment.failed');
+    // ── Payment redirect pages ────────────────────────────────────────────────
+    Route::get('/payment/success', [PaymentController::class, 'paymentSuccess'])->name('payment.success');
+    Route::get('/payment/failed', [PaymentController::class, 'paymentFailed'])->name('payment.failed');
 
-// ── Webhook Midtrans — HARUS exempt CSRF ─────────────────────────────────
-// Tambahkan 'payment/webhook' ke App\Http\Middleware\VerifyCsrfToken@$except
-Route::post('/payment/webhook', [PaymentController::class, 'handleWebhook'])->name('payment.webhook');
+    // ── Webhook Midtrans — 
+    Route::post('/payment/webhook', [PaymentController::class, 'handleWebhook'])->name('payment.webhook');
 
 
 
+
+// Admin Routes
 Auth::routes();
 
 Route::middleware(['auth'])->group(function () {
@@ -102,4 +108,4 @@ Route::middleware(['auth'])->group(function () {
 
 Route::get('index/{locale}', [HomeController::class, 'lang']);
 Route::post('/formsubmit', [HomeController::class, 'FormSubmit'])->name('FormSubmit');
-Route::get('{any}', [HomeController::class, 'index'])->where('any', '.*');
+// Route::get('{any}', [HomeController::class, 'index'])->where('any', '.*');

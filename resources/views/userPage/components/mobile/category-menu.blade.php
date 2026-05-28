@@ -32,7 +32,7 @@
 <div class="mobile-menu-wrap">
     <div class="d-flex align-items-center justify-content-between mb-2">
         <span class="mobile-section-title mb-0">Kategori Paket</span>
-        <small style="font-size:11px; color:#6c757d;">Lihat semua →</small>
+        <!-- <small style="font-size:11px; color:#6c757d;">Lihat semua →</small> -->
     </div>
 
     <div class="mobile-menu-grid">

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
- use Barryvdh\DomPDF\Facade\Pdf;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Booking;
 
 class BookingController extends Controller
@@ -49,9 +49,27 @@ class BookingController extends Controller
             return response()->json(['message' => 'Paket tidak sesuai dengan produk.'], 422);
         }
 
+        /* ── Cek kapasitas slot sebelum lanjut ──────────────────────────
+           Tolak langsung jika slot sudah penuh (2 booking aktif),
+           sehingga tidak ada transaksi "hantu" di DB.
+        ──────────────────────────────────────────────────────────────── */
+        $slotCount = Transaksi::whereDate('session_date', $validated['session_date'])
+            ->where('session_time', $validated['session_time'])
+            ->whereNotIn('status', ['cancelled'])
+            ->count();
+
+        if ($slotCount >= 2) {
+            return response()->json([
+                'message' => 'Slot waktu ' . $validated['session_time'] .
+                             ' pada tanggal ' . $validated['session_date'] .
+                             ' sudah penuh. Silakan pilih waktu lain.',
+                'errors'  => ['session_time' => ['Slot sudah penuh.']],
+            ], 422);
+        }
+
         DB::beginTransaction();
         try {
-            // Buat / temukan User
+            /* Buat / temukan User berdasarkan nomor HP */
             $user = User::firstOrCreate(
                 ['username' => $validated['phone_number']],
                 [
@@ -61,12 +79,17 @@ class BookingController extends Controller
                 ]
             );
 
-            // Simpan transaksi dengan status 'menunggu pembayaran'
+            /* ── Simpan transaksi ───────────────────────────────────────
+               FIX: session_date dan session_time sekarang disimpan
+               ke kolom yang benar di tabel transaksis.
+            ────────────────────────────────────────────────────────── */
             $transaksi = Transaksi::create([
                 'user_id'        => $user->id,
                 'customer_name'  => $validated['customer_name'],
                 'phone_number'   => $validated['phone_number'],
                 'packet_id'      => $validated['packet_id'],
+                'session_date'   => $validated['session_date'],   // ← FIX: disimpan ke DB
+                'session_time'   => $validated['session_time'],   // ← FIX: disimpan ke DB
                 'total_price'    => $packet->price,
                 'discount'       => 0,
                 'status'         => 'belum dibayar',
@@ -77,17 +100,16 @@ class BookingController extends Controller
                 'receipt_code'   => 'TEMP-' . uniqid(),
             ]);
 
-            // Generate receipt_code — dipakai sebagai order_id Midtrans
+            /* Generate receipt_code — dipakai sebagai order_id Midtrans */
             $receiptCode = 'INV/' . Carbon::now()->format('Ymd') . '/' . $transaksi->transaction_id;
-       
-            $transaksi->receipt_code = $receiptCode;
-            $transaksi->order_id = $receiptCode;  // ← Tambahkan ini!
 
+            $transaksi->receipt_code = $receiptCode;
+            $transaksi->order_id     = $receiptCode;
             $transaksi->save();
 
             DB::commit();
 
-            // Konfigurasi Midtrans
+            /* ── Konfigurasi & request Snap Token ──────────────────── */
             \Midtrans\Config::$serverKey    = config('midtrans.server_key');
             \Midtrans\Config::$isProduction = config('midtrans.is_production');
             \Midtrans\Config::$isSanitized  = true;
@@ -95,22 +117,24 @@ class BookingController extends Controller
 
             $snapToken = \Midtrans\Snap::getSnapToken([
                 'transaction_details' => [
-                    'order_id'     => $receiptCode, // receipt_code sebagai order_id
+                    'order_id'     => $receiptCode,
                     'gross_amount' => (int) $packet->price,
                 ],
                 'customer_details' => [
                     'first_name' => $validated['customer_name'],
                     'phone'      => $validated['phone_number'],
                 ],
-                'item_details' => [[
-                    'id'       => $packet->id,
-                    'price'    => (int) $packet->price,
-                    'quantity' => 1,
-                    'name'     => $packet->product->name . ' - ' . $packet->name,
-                ]],
-                    'expiry' => [
-                    'unit' => 'minutes', 
-                    'duration' => 1,    // Beri waktu 20 menit bagi pelanggan untuk transfer
+                'item_details' => [
+                    [
+                        'id'       => $packet->id,
+                        'price'    => (int) $packet->price,
+                        'quantity' => 1,
+                        'name'     => $packet->product->name . ' - ' . $packet->name,
+                    ]
+                ],
+                'expiry' => [
+                    'unit'     => 'minutes',
+                    'duration' => 20,
                 ],
             ]);
 
@@ -128,25 +152,65 @@ class BookingController extends Controller
         }
     }
 
-   
+    /* ──────────────────────────────────────────────────────────────────
+       AVAILABLE SLOTS
+       GET /booking/available-slots?date=YYYY-MM-DD
+       Response: { slots: [ { time, booked, max, available } ] }
+    ────────────────────────────────────────────────────────────────── */
+    public function availableSlots(Request $request): JsonResponse
+    {
+        $request->validate([
+            'date' => 'required|date|after_or_equal:today',
+        ]);
 
-public function downloadPdf($order_id)
-{
-    $booking = Transaksi::with([
-        'packet.product',
-        'packet.printOptions',
-        'additionals'
-    ])
-    ->where('order_id', $order_id)
-    ->firstOrFail();
+        $date  = $request->date;
+        $slots = [];
 
-    $transaksi = $booking;
+        /* Generate slot 10:00 – 20:00, per 30 menit */
+        for ($h = 10; $h <= 20; $h++) {
+            foreach ([0, 30] as $m) {
+                if ($h === 20 && $m === 30) break;
 
-    $pdf = Pdf::loadView('invoices.template', compact('transaksi'))
-        ->setPaper('a4', 'portrait');
+                $time = sprintf('%02d:%02d', $h, $m);
 
-    $fileName = str_replace('/', '-', $booking->order_id);
+                /* Hitung booking aktif di slot ini */
+                $booked = Transaksi::whereDate('session_date', $date)
+                    ->where('session_time', $time)
+                    ->whereNotIn('status', ['cancelled'])
+                    ->count();
 
-    return $pdf->download('invoice-booking-' . $fileName . '.pdf');
-}
+                $slots[] = [
+                    'time'      => $time,
+                    'booked'    => $booked,
+                    'max'       => 2,
+                    'available' => $booked < 2,
+                ];
+            }
+        }
+
+        return response()->json(['slots' => $slots]);
+    }
+
+    /* ──────────────────────────────────────────────────────────────────
+       DOWNLOAD PDF INVOICE
+    ────────────────────────────────────────────────────────────────── */
+    public function downloadPdf($order_id)
+    {
+        $booking = Transaksi::with([
+            'packet.product',
+            'packet.printOptions',
+            'additionals',
+        ])
+            ->where('order_id', $order_id)
+            ->firstOrFail();
+
+        $transaksi = $booking;
+
+        $pdf = Pdf::loadView('invoices.template', compact('transaksi'))
+            ->setPaper('a4', 'portrait');
+
+        $fileName = str_replace('/', '-', $booking->order_id);
+
+        return $pdf->download('invoice-booking-' . $fileName . '.pdf');
+    }
 }

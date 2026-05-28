@@ -20,23 +20,14 @@
                 Booking Sekarang
             </a>
 
+             <a href="https://wa.me/6281235063247?text=Halo%20Admin%20Yunas%20Studio,%20saya%20ingin%20bertanya%20mengenai%20booking."
+                target="_blank"
+               class="btn cta-btn-secondary">
+                <i class="mdi mdi-whatsapp"></i>
+            </a>
+
         </div>
-        <div class="d-flex gap-2 mt-4 justify-content-center">
-
-            <a href="#"
-               class="btn cta-btn-secondary">
-                <i class="mdi mdi-whatsapp"></i>
-            </a>
-            <a href="#"
-               class="btn cta-btn-secondary">
-                <i class="mdi mdi-whatsapp"></i>
-            </a>
-            <a href="#"
-               class="btn cta-btn-secondary">
-                <i class="mdi mdi-whatsapp"></i>
-            </a>
-
-        </div>  
+       
     </div>
 
 </div>

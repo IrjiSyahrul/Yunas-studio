@@ -11,7 +11,7 @@
 
             <div>
                 <h6 class="text-white fw-bold mb-0"
-                    style="font-size: 15px; letter-spacing: 0.5px; font-family: sans-serif;">
+                    style="font-size: 18px; letter-spacing: 0.5px; font-family: sans-serif;">
                     YUNAS STUDIO
                 </h6>
 
