@@ -42,6 +42,12 @@
                         Kontak
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ route('schedule') }}"
+                        class="nav-link text-dark">
+                        Jadwal / Pesanan
+                    </a>
+                </li>
             </ul>
 
             {{-- Tombol CTA --}}

@@ -16,7 +16,23 @@ use App\Http\Controllers\AdditionalController;
 use App\Http\Controllers\AdditionalDefaultController;
 use App\Http\Controllers\User\PaymentController;
 use App\Http\Controllers\User\BookingController;
-
+use App\Http\Controllers\User\ScheduleController;
+ 
+// ── Halaman Jadwal ────────────────────────────────────────────────────
+Route::get('/jadwal', [ScheduleController::class, 'index'])
+    ->name('schedule');
+ 
+// ── API: slot tersedia per tanggal ────────────────────────────────────
+Route::get('/jadwal/slots', [ScheduleController::class, 'slots'])
+    ->name('schedule.slots');
+ 
+// ── API: cari booking milik user (untuk reschedule) ───────────────────
+Route::post('/jadwal/cari-booking', [ScheduleController::class, 'cariBooking'])
+    ->name('schedule.cari-booking');
+ 
+// ── API: simpan reschedule ────────────────────────────────────────────
+Route::post('/jadwal/reschedule', [ScheduleController::class, 'reschedule'])
+    ->name('schedule.reschedule');
 
 // User Page
     Route::get('/', [UserHomeController::class, 'index'])->name('userPage.home');

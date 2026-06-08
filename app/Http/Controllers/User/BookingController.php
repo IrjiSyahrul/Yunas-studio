@@ -1,8 +1,8 @@
 <?php
 
 namespace App\Http\Controllers\User;
-use App\Http\Controllers\Controller;
 
+use App\Http\Controllers\Controller;
 use App\Models\Packet;
 use App\Models\Transaksi;
 use App\Models\User;
@@ -15,14 +15,81 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Models\Booking;
 
 class BookingController extends Controller
 {
-    /**
-     * Validasi form → simpan transaksi (status: menunggu pembayaran) → buat Snap Token.
-     * Status akan diupdate ke 'sudah dibayar' oleh PaymentController@handleWebhook.
-     */
+    // ═══════════════════════════════════════════════════════════════════
+    // HELPER — Generate semua slot dalam 1 hari (10:00 – 18:00, per 30m)
+    // Mengembalikan array string: ['10:00', '10:30', '11:00', ...]
+    // ═══════════════════════════════════════════════════════════════════
+    private function generateAllSlots(): array
+    {
+        $slots = [];
+        for ($h = 10; $h <= 18; $h++) {
+            foreach ([0, 30] as $m) {
+                // 18:30 tidak ada — batas akhir adalah 18:00
+                if ($h === 18 && $m === 30) break;
+                $slots[] = sprintf('%02d:%02d', $h, $m);
+            }
+        }
+        return $slots; // 17 slot: 10:00 s.d. 18:00
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // HELPER — Dari 1 slot awal + durasi, hitung semua slot yang terpakai
+    //
+    // Contoh: startTime='10:00', durationMinutes=60
+    //   → slot yang terpakai: ['10:00', '10:30']  (2 slot × 30 menit)
+    //
+    // Contoh: startTime='10:00', durationMinutes=120
+    //   → slot yang terpakai: ['10:00', '10:30', '11:00', '11:30']
+    // ═══════════════════════════════════════════════════════════════════
+    private function getOccupiedSlots(string $startTime, int $durationMinutes): array
+    {
+        $slots    = [];
+        $start    = Carbon::createFromFormat('H:i', $startTime);
+        $slotCount = (int) ceil($durationMinutes / 30); // misal 60 menit → 2 slot
+
+        for ($i = 0; $i < $slotCount; $i++) {
+            $slots[] = $start->copy()->addMinutes($i * 30)->format('H:i');
+        }
+
+        return $slots;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // HELPER — Ambil semua booking aktif di 1 tanggal
+    // Return: [ '10:00' => 2, '10:30' => 1, ... ]  (hitung per slot)
+    //
+    // Setiap transaksi aktif memblokir SEMUA slot dalam range durasinya.
+    // Misal booking 10:00 paket 90 menit → memblokir 10:00, 10:30, 11:00.
+    // ═══════════════════════════════════════════════════════════════════
+    private function getBookedCountPerSlot(string $date): array
+    {
+        $booked = [];
+
+        // Ambil semua transaksi aktif di tanggal ini beserta durasi paketnya
+        $transaksis = Transaksi::whereDate('session_date', $date)
+            ->whereNotIn('status', ['gagal'])
+            ->with('packet:id,duration_minutes')
+            ->get(['session_time', 'packet_id']);
+
+        foreach ($transaksis as $t) {
+            $duration = $t->packet->duration_minutes ?? 60; // fallback 60 menit
+            $occupied = $this->getOccupiedSlots($t->session_time, $duration);
+
+            foreach ($occupied as $slot) {
+                $booked[$slot] = ($booked[$slot] ?? 0) + 1;
+            }
+        }
+
+        return $booked;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CREATE SNAP TOKEN
+    // Validasi → cek konflik slot range → simpan transaksi → Snap Token
+    // ═══════════════════════════════════════════════════════════════════
     public function createSnapToken(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -42,34 +109,47 @@ class BookingController extends Controller
         }
 
         $validated = $validator->validated();
-
-        $packet = Packet::with('product')->findOrFail($validated['packet_id']);
+        $packet    = Packet::with('product')->findOrFail($validated['packet_id']);
 
         if ($packet->product_id != $validated['product_id']) {
             return response()->json(['message' => 'Paket tidak sesuai dengan produk.'], 422);
         }
 
-        /* ── Cek kapasitas slot sebelum lanjut ──────────────────────────
-           Tolak langsung jika slot sudah penuh (2 booking aktif),
-           sehingga tidak ada transaksi "hantu" di DB.
-        ──────────────────────────────────────────────────────────────── */
-        $slotCount = Transaksi::whereDate('session_date', $validated['session_date'])
-            ->where('session_time', $validated['session_time'])
-            ->whereNotIn('status', ['cancelled'])
-            ->count();
+        // ── Cek konflik slot berdasarkan RANGE DURASI ─────────────────
+        // Ambil semua slot yang akan dipakai booking baru ini
+        $slotsNeeded  = $this->getOccupiedSlots($validated['session_time'], $packet->duration_minutes);
+        $bookedCounts = $this->getBookedCountPerSlot($validated['session_date']);
 
-        if ($slotCount >= 2) {
+        $conflictSlots = [];
+        foreach ($slotsNeeded as $slot) {
+            if (($bookedCounts[$slot] ?? 0) >= 2) {
+                $conflictSlots[] = $slot;
+            }
+        }
+
+        // Juga pastikan semua slot dalam range tidak melewati batas jam operasional (18:00)
+        $allSlots = $this->generateAllSlots();
+        foreach ($slotsNeeded as $slot) {
+            if (!in_array($slot, $allSlots)) {
+                return response()->json([
+                    'message' => 'Paket dengan durasi ' . $packet->duration_minutes . ' menit tidak muat jika dimulai pukul '
+                                 . $validated['session_time'] . '. Silakan pilih waktu lebih awal.',
+                    'errors'  => ['session_time' => ['Slot melewati jam operasional (maks 18:00).']],
+                ], 422);
+            }
+        }
+
+        if (!empty($conflictSlots)) {
             return response()->json([
-                'message' => 'Slot waktu ' . $validated['session_time'] .
-                             ' pada tanggal ' . $validated['session_date'] .
-                             ' sudah penuh. Silakan pilih waktu lain.',
+                'message' => 'Slot ' . implode(', ', $conflictSlots) . ' pada tanggal '
+                             . $validated['session_date'] . ' sudah penuh. Silakan pilih waktu lain.',
                 'errors'  => ['session_time' => ['Slot sudah penuh.']],
             ], 422);
         }
+        // ─────────────────────────────────────────────────────────────
 
         DB::beginTransaction();
         try {
-            /* Buat / temukan User berdasarkan nomor HP */
             $user = User::firstOrCreate(
                 ['username' => $validated['phone_number']],
                 [
@@ -79,17 +159,13 @@ class BookingController extends Controller
                 ]
             );
 
-            /* ── Simpan transaksi ───────────────────────────────────────
-               FIX: session_date dan session_time sekarang disimpan
-               ke kolom yang benar di tabel transaksis.
-            ────────────────────────────────────────────────────────── */
             $transaksi = Transaksi::create([
                 'user_id'        => $user->id,
                 'customer_name'  => $validated['customer_name'],
                 'phone_number'   => $validated['phone_number'],
                 'packet_id'      => $validated['packet_id'],
-                'session_date'   => $validated['session_date'],   // ← FIX: disimpan ke DB
-                'session_time'   => $validated['session_time'],   // ← FIX: disimpan ke DB
+                'session_date'   => $validated['session_date'],
+                'session_time'   => $validated['session_time'],
                 'total_price'    => $packet->price,
                 'discount'       => 0,
                 'status'         => 'belum dibayar',
@@ -100,16 +176,13 @@ class BookingController extends Controller
                 'receipt_code'   => 'TEMP-' . uniqid(),
             ]);
 
-            /* Generate receipt_code — dipakai sebagai order_id Midtrans */
             $receiptCode = 'INV/' . Carbon::now()->format('Ymd') . '/' . $transaksi->transaction_id;
-
             $transaksi->receipt_code = $receiptCode;
             $transaksi->order_id     = $receiptCode;
             $transaksi->save();
 
             DB::commit();
 
-            /* ── Konfigurasi & request Snap Token ──────────────────── */
             \Midtrans\Config::$serverKey    = config('midtrans.server_key');
             \Midtrans\Config::$isProduction = config('midtrans.is_production');
             \Midtrans\Config::$isSanitized  = true;
@@ -134,7 +207,7 @@ class BookingController extends Controller
                 ],
                 'expiry' => [
                     'unit'     => 'minutes',
-                    'duration' => 20,
+                    'duration' => 1,
                 ],
             ]);
 
@@ -152,48 +225,64 @@ class BookingController extends Controller
         }
     }
 
-    /* ──────────────────────────────────────────────────────────────────
-       AVAILABLE SLOTS
-       GET /booking/available-slots?date=YYYY-MM-DD
-       Response: { slots: [ { time, booked, max, available } ] }
-    ────────────────────────────────────────────────────────────────── */
     public function availableSlots(Request $request): JsonResponse
     {
         $request->validate([
-            'date' => 'required|date|after_or_equal:today',
+            'date'      => 'required|date|after_or_equal:today',
+            'packet_id' => 'nullable|exists:packets,id',
         ]);
 
-        $date  = $request->date;
-        $slots = [];
+        $date    = $request->date;
+        $allSlots = $this->generateAllSlots();
 
-        /* Generate slot 10:00 – 20:00, per 30 menit */
-        for ($h = 10; $h <= 20; $h++) {
-            foreach ([0, 30] as $m) {
-                if ($h === 20 && $m === 30) break;
-
-                $time = sprintf('%02d:%02d', $h, $m);
-
-                /* Hitung booking aktif di slot ini */
-                $booked = Transaksi::whereDate('session_date', $date)
-                    ->where('session_time', $time)
-                    ->whereNotIn('status', ['cancelled'])
-                    ->count();
-
-                $slots[] = [
-                    'time'      => $time,
-                    'booked'    => $booked,
-                    'max'       => 2,
-                    'available' => $booked < 2,
-                ];
+        // Durasi paket yang sedang dilihat user (untuk cek apakah slot cukup)
+        $viewDuration = 30; // default: 1 slot = 30 menit
+        if ($request->packet_id) {
+            $packet = Packet::find($request->packet_id);
+            if ($packet) {
+                $viewDuration = $packet->duration_minutes;
             }
+        }
+
+        // Hitung berapa booking aktif yang "menyentuh" setiap slot
+        $bookedCounts = $this->getBookedCountPerSlot($date);
+
+        $slots = [];
+        foreach ($allSlots as $time) {
+            // Slot yang akan dipakai jika user memilih waktu ini
+            $slotsNeeded = $this->getOccupiedSlots($time, $viewDuration);
+
+            // Cek apakah semua slot dalam range tersedia (tidak ada yang penuh)
+            // dan semua slot dalam range masuk dalam jam operasional
+            $rangeAvailable = true;
+            $maxBookedInRange = 0;
+
+            foreach ($slotsNeeded as $s) {
+                // Slot di luar jam operasional → tidak bisa dipilih
+                if (!in_array($s, $allSlots)) {
+                    $rangeAvailable = false;
+                    break;
+                }
+                $count = $bookedCounts[$s] ?? 0;
+                if ($count >= 2) {
+                    $rangeAvailable = false;
+                    break;
+                }
+                $maxBookedInRange = max($maxBookedInRange, $count);
+            }
+
+            $slots[] = [
+                'time'      => $time,
+                'booked'    => $maxBookedInRange,   
+                'max'       => 2,
+                'available' => $rangeAvailable,
+            ];
         }
 
         return response()->json(['slots' => $slots]);
     }
 
-    /* ──────────────────────────────────────────────────────────────────
-       DOWNLOAD PDF INVOICE
-    ────────────────────────────────────────────────────────────────── */
+
     public function downloadPdf($order_id)
     {
         $booking = Transaksi::with([

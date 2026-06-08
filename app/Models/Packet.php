@@ -18,7 +18,8 @@ class Packet extends Model
         'max_photos_for_edit',
         'product_id',
         'image',
-        'is_active'
+        'is_active',
+        'duration_minutes'
     ];
 
     public function transaksis()

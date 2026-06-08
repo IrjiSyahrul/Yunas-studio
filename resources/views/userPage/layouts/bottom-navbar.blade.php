@@ -2,15 +2,13 @@
 <nav class="mobile-bottom-nav">
 
     {{-- Beranda --}}
-    <a href="{{ url('/') }}"
-       class="{{ request()->is('/') && request()->query('page') !== 'galeri' ? 'active' : '' }}">
+    <a href="{{ url('/') }}" class="{{ request()->is('/') && request()->query('page') !== 'galeri' ? 'active' : '' }}">
         <i class="bi bi-house-fill"></i>
         <span>Beranda</span>
     </a>
 
     {{-- Galeri --}}
-    <a href="{{route('galeri') }}"
-       class="{{ request()->query('page') === 'galeri' ? 'active' : '' }}">
+    <a href="{{route('galeri') }}" class="{{ request()->query('page') === 'galeri' ? 'active' : '' }}">
         <i class="bi bi-images"></i>
         <span>Galeri</span>
     </a>
@@ -20,7 +18,11 @@
         <i class="bi bi-calendar-plus-fill"></i>
         <span>Booking</span>
     </a>
-
+    {{-- Jadwal --}}
+    <a href="{{ route('schedule') }}">
+        <i class="bi bi-calendar"></i>
+        <span>Jadwal</span>
+    </a>
     {{-- Kontak --}}
     <a href="{{ route('kontak') }}">
         <i class="bi bi-person-fill"></i>

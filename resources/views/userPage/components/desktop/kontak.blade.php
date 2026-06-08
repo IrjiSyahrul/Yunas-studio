@@ -1,5 +1,4 @@
 
-
         {{-- Hero --}}
         <div style="background:#1a1a1a; padding: 4rem 5rem; display:flex; align-items:center; gap:3rem;">
             <img src="{{ asset('images/LogoYunas.png') }}"

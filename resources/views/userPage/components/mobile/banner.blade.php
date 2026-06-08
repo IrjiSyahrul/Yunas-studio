@@ -25,7 +25,6 @@
                                         border-radius:inherit;">
                         </div>
 
-                        {{-- Text --}}
                         <div style="position:absolute; bottom:14px; left:14px;">
 
                             <span style="background:rgba(255,255,255,0.18);
@@ -56,7 +55,6 @@
             @endforeach
         </div>
 
-        {{-- Indicator --}}
         <div class="carousel-indicators" style="margin-bottom:8px;">
             @foreach($banners as $i => $banner)
                 <button type="button" data-bs-target="#mobileBanner" data-bs-slide-to="{{ $i }}"

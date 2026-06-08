@@ -53,6 +53,42 @@
                                             <input type="number" class="form-control" id="max_photos_for_edit" name="max_photos_for_edit" value="{{ old('max_photos_for_edit', 10) }}" min="0" required>
                                         </div>
                                     </div>
+                                     <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="duration_minutes" class="form-label">
+                                                Durasi Pemotretan
+                                            </label>
+                                            <select class="form-select @error('duration_minutes') is-invalid @enderror"
+                                                    id="duration_minutes"
+                                                    name="duration_minutes"
+                                                    required>
+                                                @php
+                                                    $durations = [
+                                                        30  => '30 menit',
+                                                        60  => '1 jam',
+                                                        90  => '1 jam 30 menit',
+                                                        120 => '2 jam',
+                                                        150 => '2 jam 30 menit',
+                                                        180 => '3 jam',
+                                                        210 => '3 jam 30 menit',
+                                                        240 => '4 jam',
+                                                    ];
+                                                @endphp
+                                                <option value="" disabled {{ old('duration_minutes') ? '' : 'selected' }}>
+                                                    -- Pilih Durasi --
+                                                </option>
+                                                @foreach($durations as $value => $label)
+                                                    <option value="{{ $value }}"
+                                                        {{ old('duration_minutes', 60) == $value ? 'selected' : '' }}>
+                                                        {{ $label }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            @error('duration_minutes')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="product_id" class="form-label">Product</label>

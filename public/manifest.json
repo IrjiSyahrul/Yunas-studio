@@ -1,10 +1,10 @@
 {
     "name": "Yunas Studio",
     "short_name": "YS",
-    "start_url": "/index.php",
+    "start_url": "/",
     "background_color": "#6777ef",
     "description": "Progressive Web App (PWA) for Yunas Studio, a platform for creative content and services.",
-    "display": "fullscreen",
+    "display": "standalone",
     "theme_color": "#6777ef",
     "icons": [
         {
