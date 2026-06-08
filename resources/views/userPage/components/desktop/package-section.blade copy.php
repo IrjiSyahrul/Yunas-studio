@@ -1,4 +1,4 @@
-<section id="paket" class="desktop-only bg-light py-5">
+<section id="pakets" class="desktop-only bg-light py-5">
         <div class="container py-4">
             <div class="text-center mb-5">
                 <span class="badge bg-secondary text-uppercase fw-semibold px-3 py-2 mb-3 rounded-pill"

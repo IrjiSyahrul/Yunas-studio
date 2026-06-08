@@ -391,9 +391,11 @@
                             <tbody>
                                 @php
                                     $paymentStatusConfig = [
-                                        'belum dibayar' => ['label' => 'Belum Dibayar', 'icon' => '🟡', 'class' => 'bg-warning-subtle text-warning-emphasis'],
-                                        'dp' => ['label' => 'DP (Uang Muka)', 'icon' => '🔵', 'class' => 'bg-info-subtle text-info-emphasis'],
-                                        'sudah dibayar' => ['label' => 'Lunas', 'icon' => '🟢', 'class' => 'bg-success-subtle text-success-emphasis'],
+                                        'belum dibayar'     => ['label' => 'Belum Dibayar', 'icon' => '🟡', 'class' => 'bg-warning-subtle text-warning-emphasis'],
+                                        'menunggu pembayaran'=> ['label' => 'Menunggu Pembayaran', 'icon' => '🟠', 'class' => 'bg-neutral-subtle text-neutral-emphasis'], // Opsional, jika dipakai
+                                        'dp'                => ['label' => 'DP (Uang Muka)', 'icon' => '🔵', 'class' => 'bg-info-subtle text-info-emphasis'],
+                                        'sudah dibayar'     => ['label' => 'Lunas', 'icon' => '🟢', 'class' => 'bg-success-subtle text-success-emphasis'],
+                                        'gagal'             => ['label' => 'Gagal / Kedaluwarsa', 'icon' => '🔴', 'class' => 'bg-danger-subtle text-danger-emphasis'],
                                     ];
                                     
                                     $processStatusConfig = [

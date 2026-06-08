@@ -1,48 +1,40 @@
 {{--
-    =====================================================================
-    BOOKING MODAL
-    =====================================================================
-    Alur saat ini  : Form → POST /booking → simpan ke transaksis → sukses
-    Alur nanti     : Setelah BookingController sukses → PaymentController
-                     ambil Snap Token → popup Midtrans
-
-    Cara pakai:
-    1. @include('booking.modal') di landing page
-    2. Inject $packets dari controller halaman tersebut
-    3. Tombol trigger: data-bs-toggle="modal" data-bs-target="#bookingModal"
-    4. Pastikan layout punya: <meta name="csrf-token" content="{{ csrf_token() }}">
-    =====================================================================
+=====================================================================
+BOOKING MODAL — Versi dengan fitur DURASI PAKET
+=====================================================================
+Perubahan dari versi lama:
+1. bookingUpdatePackets    → tambah dataset.duration di option paket
+2. bookingUpdatePrice      → refresh slot saat paket diganti
+3. fetchAndRenderSlots     → kirim packet_id ke /booking/available-slots
+=====================================================================
 --}}
 
-<div class="modal fade"
-     id="bookingModal"
-     tabindex="-1"
-     aria-hidden="true"
-     data-bs-backdrop="static">
+<div class="modal fade" id="bookingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
 
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content rounded-4 border-0 shadow-lg">
+        <div class="modal-content bm-card">
 
             {{-- ── Header ────────────────────────────────────────────── --}}
-            <div class="modal-header border-0 pb-0 px-4 pt-4">
-                <div>
-                    <h5 class="modal-title fw-bold mb-0">
-                        <i class="mdi mdi-camera-outline text-success me-2"></i>Booking Sesi Foto
-                    </h5>
-                    <p class="text-muted small mb-0 mt-1">
-                        Isi data di bawah untuk melakukan booking sesi foto
-                    </p>
+            <div class="bm-header">
+                <div class="bm-header-inner">
+                    <div class="bm-icon-wrap">
+                        <i class="mdi mdi-camera-outline"></i>
+                    </div>
+                    <div>
+                        <h5 class="bm-title">Booking Sesi Foto</h5>
+                        <p class="bm-subtitle" id="booking-modal-subtitle">
+                            Isi data di bawah untuk melakukan booking sesi foto
+                        </p>
+                    </div>
                 </div>
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal"
-                        id="bookingCloseBtn">
+                <button type="button" class="bm-close-btn" data-bs-dismiss="modal" id="bookingCloseBtn">
+                    <i class="mdi mdi-close"></i>
                 </button>
             </div>
 
             {{-- ── Step Indicator ────────────────────────────────────── --}}
-            <div class="px-4 pt-3">
-                <div class="d-flex align-items-center gap-2">
+            <div class="bm-steps-wrap">
+                <div class="bm-steps">
                     <div class="booking-step active" id="step-indicator-1">
                         <span class="step-number">1</span>
                         <span class="step-label">Data Diri</span>
@@ -61,70 +53,74 @@
             </div>
 
             {{-- ── Body ──────────────────────────────────────────────── --}}
-            <div class="modal-body p-4" id="booking-modal-body">
+            <div class="modal-body bm-body" id="booking-modal-body">
 
                 {{-- ════════════ STEP 1 : Data Diri ════════════ --}}
                 <div id="booking-step-1">
-                    <div class="row g-3">
 
+                    <div id="booking-preselect-banner" class="d-none mb-4">
+                        <div class="bm-banner">
+                            <div class="bm-banner-icon">
+                                <i class="mdi mdi-check"></i>
+                            </div>
+                            <div>
+                                <p class="bm-banner-title">Paket sudah dipilih</p>
+                                <p class="bm-banner-sub" id="banner-packet-info">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
                         <div class="col-12">
-                            <label class="form-label fw-semibold">
-                                Nama Lengkap <span class="text-danger">*</span>
+                            <label class="bm-label">
+                                Nama Lengkap <span class="bm-required">*</span>
                             </label>
-                            <input type="text"
-                                   class="form-control form-control-lg"
-                                   id="b_customer_name"
-                                   placeholder="Masukkan nama lengkap Anda"
-                                   autocomplete="name">
+                            <input type="text" class="bm-input" id="b_customer_name"
+                                placeholder="Masukkan nama lengkap Anda" autocomplete="name">
                             <div class="invalid-feedback d-none" id="err_customer_name">
                                 Nama tidak boleh kosong.
                             </div>
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label fw-semibold">
-                                Nomor WhatsApp <span class="text-danger">*</span>
+                            <label class="bm-label">
+                                Nomor WhatsApp <span class="bm-required">*</span>
                             </label>
-                            <div class="input-group input-group-lg">
-                                <span class="input-group-text bg-light border-end-0">
-                                    <i class="mdi mdi-whatsapp text-success"></i>
+                            <div class="bm-input-group">
+                                <span class="bm-input-prefix">
+                                    <i class="mdi mdi-whatsapp"></i>
                                 </span>
-                                <input type="tel"
-                                       class="form-control border-start-0"
-                                       id="b_phone_number"
-                                       placeholder="08xxxxxxxxxx"
-                                       autocomplete="tel">
+                                <input type="tel" class="bm-input bm-input-suffix" id="b_phone_number"
+                                    placeholder="08xxxxxxxxxx" autocomplete="tel">
                             </div>
                             <div class="invalid-feedback d-none" id="err_phone_number">
                                 Nomor tidak valid. Gunakan format 08xxxxxxxxxx.
                             </div>
                         </div>
-
                     </div>
 
                     <div class="d-grid mt-4">
-                        <button class="btn btn-success btn-lg rounded-pill"
-                                onclick="bookingNextStep(2)">
+                        <button class="bm-btn-primary" onclick="bookingNextStep(2)">
                             Lanjut Pilih Paket <i class="mdi mdi-arrow-right ms-1"></i>
                         </button>
                     </div>
                 </div>
+                {{-- /STEP 1 --}}
 
                 {{-- ════════════ STEP 2 : Pilih Paket & Jadwal ════════════ --}}
                 <div id="booking-step-2" class="d-none">
                     <div class="row g-3">
 
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">
-                                Produk <span class="text-danger">*</span>
+                            <label class="bm-label">
+                                Produk <span class="bm-required">*</span>
                             </label>
-                            <select class="form-select form-select-lg"
-                                    id="b_product_id"
-                                    onchange="bookingUpdatePackets()">
+                            <select class="bm-select" id="b_product_id"
+                                onchange="bookingUpdatePackets()">
                                 <option value="" disabled selected>-- Pilih Produk --</option>
                                 @foreach($packets as $productName => $packetGroup)
                                     <option value="{{ $packetGroup->first()->product_id }}"
-                                            data-product-name="{{ $productName }}">
+                                        data-product-name="{{ $productName }}">
                                         {{ $productName }}
                                     </option>
                                 @endforeach
@@ -135,149 +131,185 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">
-                                Paket <span class="text-danger">*</span>
+                            <label class="bm-label">
+                                Paket <span class="bm-required">*</span>
                             </label>
-                            <select class="form-select form-select-lg"
-                                    id="b_packet_id"
-                                    disabled
-                                    onchange="bookingUpdatePrice()">
+                            <select class="bm-select" id="b_packet_id" disabled
+                                onchange="bookingUpdatePrice()">
                                 <option value="" data-price="0" disabled selected>-- Pilih Paket --</option>
                             </select>
                             <div class="invalid-feedback d-none" id="err_packet">
                                 Pilih paket terlebih dahulu.
                             </div>
+                            {{-- ── BARU: badge durasi paket ── --}}
+                            <small class="text-muted d-none" id="b-duration-hint">
+                                <i class="mdi mdi-clock-outline me-1"></i>
+                                <span id="b-duration-text"></span>
+                            </small>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">
-                                Tanggal Sesi <span class="text-danger">*</span>
+                        {{-- ── Jadwal Sesi: Kalender + Slot Waktu ── --}}
+                        <div class="col-12">
+                            <label class="bm-label">
+                                Jadwal Sesi <span class="bm-required">*</span>
                             </label>
-                            <input type="date"
-                                   class="form-control form-control-lg"
-                                   id="b_session_date">
-                            <div class="invalid-feedback d-none" id="err_date">
-                                Pilih tanggal sesi.
-                            </div>
-                        </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">
-                                Waktu Sesi <span class="text-danger">*</span>
-                            </label>
-                            <select class="form-select form-select-lg" id="b_session_time">
-                                <option value="" disabled selected>-- Pilih Waktu --</option>
-                                <option value="09:00">09:00 WIB</option>
-                                <option value="10:00">10:00 WIB</option>
-                                <option value="11:00">11:00 WIB</option>
-                                <option value="12:00">12:00 WIB</option>
-                                <option value="13:00">13:00 WIB</option>
-                                <option value="14:00">14:00 WIB</option>
-                                <option value="15:00">15:00 WIB</option>
-                                <option value="16:00">16:00 WIB</option>
-                            </select>
-                            <div class="invalid-feedback d-none" id="err_time">
-                                Pilih waktu sesi.
-                            </div>
-                        </div>
+                            <div class="row g-3">
 
-                        {{-- Ringkasan harga muncul setelah paket dipilih --}}
-                        <div class="col-12 d-none" id="booking-price-summary">
-                            <div class="alert alert-success border-0 rounded-3 mb-0">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <p class="mb-0 small text-muted">Total Pembayaran</p>
-                                        <p class="mb-0 fw-bold fs-5" id="booking-price-display">Rp 0</p>
+                                {{-- Kalender --}}
+                                <div class="col-md-6">
+                                    <div class="bm-calendar">
+                                        <div class="bm-cal-nav">
+                                            <button type="button" class="bm-cal-nav-btn" id="b-cal-prev">
+                                                <i class="mdi mdi-chevron-left"></i>
+                                            </button>
+                                            <span class="bm-cal-label" id="b-cal-label">—</span>
+                                            <button type="button" class="bm-cal-nav-btn" id="b-cal-next">
+                                                <i class="mdi mdi-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                        <div class="row row-cols-7 g-0 text-center mb-1">
+                                            @foreach(['Sen','Sel','Rab','Kam','Jum','Sab','Min'] as $d)
+                                                <div class="col bm-cal-dow">{{ $d }}</div>
+                                            @endforeach
+                                        </div>
+                                        <div class="row row-cols-7 g-0 text-center" id="b-cal-days"></div>
                                     </div>
-                                    <i class="mdi mdi-tag-check-outline fs-2 text-success"></i>
+                                    <div class="invalid-feedback d-none" id="err_date">
+                                        Pilih tanggal sesi.
+                                    </div>
                                 </div>
+
+                                {{-- Slot Waktu --}}
+                                <div class="col-md-6">
+                                    <div class="bm-slot-panel">
+                                        <p class="bm-slot-heading" id="b-slot-heading">
+                                            Pilih tanggal terlebih dahulu
+                                        </p>
+                                        <div id="b-slot-loading" class="text-center py-3 d-none">
+                                            <div class="spinner-border spinner-border-sm bm-spinner" role="status"></div>
+                                            <p class="bm-slot-heading mt-1 mb-0">Memuat slot...</p>
+                                        </div>
+                                        <div class="row row-cols-2 g-1" id="b-slot-grid"></div>
+                                    </div>
+                                    <div class="invalid-feedback d-none" id="err_time">
+                                        Pilih waktu sesi.
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {{-- Legenda --}}
+                            <div class="bm-legend">
+                                <span class="bm-legend-item">
+                                    <span class="bm-legend-dot bm-legend-available"></span>
+                                    Tersedia
+                                </span>
+                                <span class="bm-legend-item">
+                                    <span class="bm-legend-dot bm-legend-half"></span>
+                                    1 slot terisi
+                                </span>
+                                <span class="bm-legend-item">
+                                    <span class="bm-legend-dot bm-legend-full"></span>
+                                    Penuh
+                                </span>
+                            </div>
+
+                            <input type="hidden" id="b_session_date">
+                            <input type="hidden" id="b_session_time">
+                        </div>
+                        {{-- /Jadwal Sesi --}}
+
+                        <div class="col-12 d-none" id="booking-price-summary">
+                            <div class="bm-price-summary">
+                                <div>
+                                    <p class="bm-price-label">Total Pembayaran</p>
+                                    <p class="bm-price-value" id="booking-price-display">Rp 0</p>
+                                </div>
+                                <i class="mdi mdi-tag-check-outline bm-price-icon"></i>
                             </div>
                         </div>
 
                     </div>
 
                     <div class="d-flex gap-2 mt-4">
-                        <button class="btn btn-outline-secondary btn-lg rounded-pill px-4"
-                                onclick="bookingNextStep(1)">
+                        <button class="bm-btn-secondary px-4" onclick="bookingNextStep(1)">
                             <i class="mdi mdi-arrow-left me-1"></i> Kembali
                         </button>
-                        <button class="btn btn-success btn-lg rounded-pill flex-grow-1"
-                                onclick="bookingNextStep(3)">
+                        <button class="bm-btn-primary flex-grow-1" onclick="bookingNextStep(3)">
                             Lanjut Konfirmasi <i class="mdi mdi-arrow-right ms-1"></i>
                         </button>
                     </div>
                 </div>
+                {{-- /STEP 2 --}}
 
                 {{-- ════════════ STEP 3 : Konfirmasi & Simpan ════════════ --}}
                 <div id="booking-step-3" class="d-none">
 
-                    {{-- Ringkasan pesanan --}}
-                    <div class="card border-0 bg-light rounded-3 mb-3">
-                        <div class="card-body">
-                            <h6 class="fw-bold mb-3">
-                                <i class="mdi mdi-clipboard-check-outline text-success me-1"></i>
-                                Ringkasan Pesanan
-                            </h6>
-                            <table class="table table-sm table-borderless mb-0">
-                                <tbody>
-                                    <tr>
-                                        <td class="text-muted" style="width:40%">Nama</td>
-                                        <td class="fw-semibold" id="confirm_name">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">WhatsApp</td>
-                                        <td class="fw-semibold" id="confirm_phone">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Produk</td>
-                                        <td class="fw-semibold" id="confirm_product">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Paket</td>
-                                        <td class="fw-semibold" id="confirm_packet">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Tanggal</td>
-                                        <td class="fw-semibold" id="confirm_date">-</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="text-muted">Waktu</td>
-                                        <td class="fw-semibold" id="confirm_time">-</td>
-                                    </tr>
-                                    <tr class="border-top">
-                                        <td class="fw-bold pt-2">Total</td>
-                                        <td class="fw-bold text-success fs-5 pt-2" id="confirm_total">-</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="bm-summary-card">
+                        <h6 class="bm-summary-title">
+                            <i class="mdi mdi-clipboard-check-outline me-1"></i>
+                            Ringkasan Pesanan
+                        </h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="bm-tbl-label" style="width:40%">Nama</td>
+                                    <td class="bm-tbl-value" id="confirm_name">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="bm-tbl-label">WhatsApp</td>
+                                    <td class="bm-tbl-value" id="confirm_phone">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="bm-tbl-label">Produk</td>
+                                    <td class="bm-tbl-value" id="confirm_product">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="bm-tbl-label">Paket</td>
+                                    <td class="bm-tbl-value" id="confirm_packet">-</td>
+                                </tr>
+                                {{-- ── BARU: tampilkan durasi di ringkasan ── --}}
+                                <tr>
+                                    <td class="bm-tbl-label">Durasi</td>
+                                    <td class="bm-tbl-value" id="confirm_duration">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="bm-tbl-label">Tanggal</td>
+                                    <td class="bm-tbl-value" id="confirm_date">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="bm-tbl-label">Waktu</td>
+                                    <td class="bm-tbl-value" id="confirm_time">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="bm-tbl-label">Selesai</td>
+                                    <td class="bm-tbl-value" id="confirm_end_time">-</td>
+                                </tr>
+                                <tr class="bm-tbl-total-row">
+                                    <td class="bm-tbl-total-label pt-2">Total</td>
+                                    <td class="bm-tbl-total-value pt-2" id="confirm_total">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
 
-                    {{-- Info pembayaran --}}
-                    <div class="alert alert-info border-0 rounded-3 py-2 mb-3">
-                        <p class="mb-0 small">
-                            <i class="mdi mdi-information-outline me-1"></i>
-                            Setelah booking dikonfirmasi, tim kami akan menghubungi Anda via WhatsApp
-                            untuk info pembayaran lebih lanjut.
-                        </p>
+                    <div class="bm-info-box mb-3">
+                        <i class="mdi mdi-information-outline me-1"></i>
+                        Setelah booking dikonfirmasi, tim kami akan menghubungi Anda via WhatsApp
+                        untuk info pembayaran lebih lanjut.
                     </div>
 
-                    {{-- Loading spinner --}}
                     <div class="d-none text-center py-3" id="booking-loading">
-                        <div class="spinner-border text-success" role="status"></div>
-                        <p class="mt-2 text-muted small">Menyimpan booking Anda...</p>
+                        <div class="spinner-border bm-spinner" role="status"></div>
+                        <p class="mt-2 bm-slot-heading">Menyimpan booking Anda...</p>
                     </div>
 
-                    {{-- Tombol aksi --}}
                     <div class="d-flex gap-2" id="booking-action-btns">
-                        <button class="btn btn-outline-secondary btn-lg rounded-pill px-4"
-                                onclick="bookingNextStep(2)"
-                                id="booking-back-btn">
+                        <button class="bm-btn-secondary px-4" onclick="bookingNextStep(2)" id="booking-back-btn">
                             <i class="mdi mdi-arrow-left me-1"></i> Kembali
                         </button>
-                        <button class="btn btn-success btn-lg rounded-pill flex-grow-1"
-                                onclick="bookingSubmit()"
-                                id="booking-pay-btn">
+                        <button class="bm-btn-primary flex-grow-1" onclick="bookingSubmit()" id="booking-pay-btn">
                             <i class="mdi mdi-check-circle-outline me-1"></i> Konfirmasi Booking
                         </button>
                     </div>
@@ -286,66 +318,107 @@
                 {{-- /STEP 3 --}}
 
             </div>
-            {{-- /modal-body --}}
-
         </div>
     </div>
 </div>
 
-{{-- ═══════════════════════════════════════════════════════════════════
-     CSS
-═══════════════════════════════════════════════════════════════════ --}}
 <style>
-    .booking-step {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
+    :root {
+        --bm-navy:      #1a1a2e;
+        --bm-blue:      #0f3460;
+        --bm-mid:       #16213e;
+        --bm-slate:     #6c757d;
+        --bm-light:     #f0f4ff;
+        --bm-white:     #FFFFFF;
+        --bm-surface:   #f8f9fc;
+        --bm-border:    #e9ecef;
+        --bm-text:      #1a1a2e;
+        --bm-text-muted:#6c757d;
+        --bm-danger:    #dc3545;
     }
-    .booking-step .step-number {
-        width: 32px; height: 32px;
-        border-radius: 50%;
-        background: #e9ecef;
-        color: #6c757d;
-        font-weight: 600; font-size: 14px;
-        display: flex; align-items: center; justify-content: center;
-        transition: all .3s ease;
-    }
-    .booking-step .step-label {
-        font-size: 11px; color: #6c757d;
-        white-space: nowrap;
-        transition: all .3s ease;
-    }
-    .booking-step.active .step-number { background: #198754; color: #fff; }
-    .booking-step.active .step-label  { color: #198754; font-weight: 600; }
-    .booking-step.done   .step-number { background: #d1e7dd; color: #198754; }
-    .step-line {
-        height: 2px; background: #e9ecef;
-        margin-bottom: 18px;
-        transition: background .3s ease;
-    }
-    .step-line.done { background: #198754; }
-    @keyframes stepFadeIn {
-        from { opacity: 0; transform: translateY(8px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-    .booking-step-fade { animation: stepFadeIn .25s ease; }
+    .bm-card { border:none;border-radius:20px;overflow:hidden;box-shadow:0 24px 64px rgba(15,52,96,.18),0 4px 16px rgba(15,52,96,.08);background:var(--bm-white); }
+    .bm-header { background:linear-gradient(135deg,var(--bm-navy) 0%,var(--bm-mid) 50%,var(--bm-blue) 100%);padding:28px 28px 24px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px; }
+    .bm-header-inner { display:flex;align-items:center;gap:14px; }
+    .bm-icon-wrap { width:44px;height:44px;background:rgba(255,255,255,.12);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;color:var(--bm-light);backdrop-filter:blur(4px); }
+    .bm-title { font-size:17px;font-weight:700;color:var(--bm-white);margin:0;letter-spacing:-.2px; }
+    .bm-subtitle { font-size:12px;color:rgba(238,238,238,.65);margin:3px 0 0; }
+    .bm-close-btn { background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:var(--bm-light);border-radius:10px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:16px;transition:background .2s;padding:0; }
+    .bm-close-btn:hover { background:rgba(255,255,255,.22); }
+    .bm-steps-wrap { background:var(--bm-surface);border-bottom:1px solid var(--bm-border);padding:16px 28px; }
+    .bm-steps { display:flex;align-items:center;gap:8px; }
+    .booking-step { display:flex;flex-direction:column;align-items:center;gap:4px; }
+    .booking-step .step-number { width:30px;height:30px;border-radius:50%;background:var(--bm-border);color:var(--bm-slate);font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .3s ease;border:2px solid transparent; }
+    .booking-step .step-label { font-size:10px;color:var(--bm-slate);white-space:nowrap;font-weight:500;transition:all .3s ease;letter-spacing:.2px; }
+    .booking-step.active .step-number { background:var(--bm-blue);color:var(--bm-white);border-color:var(--bm-blue);box-shadow:0 0 0 4px rgba(15,52,96,.1); }
+    .booking-step.active .step-label { color:var(--bm-blue);font-weight:700; }
+    .booking-step.done .step-number { background:var(--bm-surface);color:var(--bm-blue);border-color:var(--bm-blue); }
+    .booking-step.done .step-label { color:var(--bm-blue); }
+    .step-line { height:2px;background:var(--bm-border);margin-bottom:18px;transition:background .3s ease;border-radius:2px; }
+    .step-line.done { background:var(--bm-blue); }
+    @keyframes stepFadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    .booking-step-fade { animation:stepFadeIn .25s ease; }
+    .bm-body { padding:28px;background:var(--bm-white); }
+    .bm-banner { display:flex;align-items:center;gap:14px;background:#f0f4ff;border-left:3px solid var(--bm-blue);border-radius:12px;padding:14px 16px; }
+    .bm-banner-icon { width:36px;height:36px;border-radius:50%;background:var(--bm-blue);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--bm-white);font-size:16px; }
+    .bm-banner-title { font-size:13px;font-weight:600;color:var(--bm-blue);margin:0; }
+    .bm-banner-sub { font-size:11px;color:var(--bm-slate);margin:2px 0 0; }
+    .bm-label { display:block;font-size:13px;font-weight:600;color:var(--bm-text);margin-bottom:6px;letter-spacing:.1px; }
+    .bm-required { color:var(--bm-danger); }
+    .bm-input,.bm-select { width:100%;padding:11px 14px;font-size:14px;color:var(--bm-text);background:var(--bm-white);border:1.5px solid var(--bm-border);border-radius:10px;outline:none;transition:border-color .2s,box-shadow .2s;appearance:none;-webkit-appearance:none; }
+    .bm-input::placeholder { color:#adb5bd; }
+    .bm-input:focus,.bm-select:focus { border-color:var(--bm-blue);box-shadow:0 0 0 3px rgba(15,52,96,.1); }
+    .bm-input.is-invalid,.bm-select.is-invalid { border-color:var(--bm-danger); }
+    .bm-select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23787A91' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer; }
+    .bm-select:disabled { background-color:var(--bm-surface);color:var(--bm-slate);cursor:not-allowed; }
+    .bm-input-group { display:flex;align-items:stretch; }
+    .bm-input-prefix { display:flex;align-items:center;padding:0 12px;background:var(--bm-surface);border:1.5px solid var(--bm-border);border-right:none;border-radius:10px 0 0 10px;color:#25D366;font-size:18px; }
+    .bm-input.bm-input-suffix { border-radius:0 10px 10px 0;flex:1; }
+    .bm-btn-primary { display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:13px 24px;font-size:14px;font-weight:600;color:var(--bm-white);background:linear-gradient(135deg,var(--bm-blue) 0%,var(--bm-navy) 100%);border:none;border-radius:50px;cursor:pointer;letter-spacing:.2px;transition:opacity .2s,transform .15s,box-shadow .2s;box-shadow:0 4px 16px rgba(15,52,96,.25); }
+    .bm-btn-primary:hover { opacity:.9;transform:translateY(-1px);box-shadow:0 6px 20px rgba(15,52,96,.3); }
+    .bm-btn-secondary { display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:13px 20px;font-size:14px;font-weight:500;color:var(--bm-slate);background:var(--bm-white);border:1.5px solid var(--bm-border);border-radius:50px;cursor:pointer;transition:border-color .2s,color .2s,background .2s; }
+    .bm-btn-secondary:hover { border-color:var(--bm-blue);color:var(--bm-blue);background:#f0f4ff; }
+    .bm-calendar { background:var(--bm-surface);border:1.5px solid var(--bm-border);border-radius:14px;padding:16px; }
+    .bm-cal-nav { display:flex;align-items:center;justify-content:space-between;margin-bottom:12px; }
+    .bm-cal-label { font-size:13px;font-weight:600;color:var(--bm-text); }
+    .bm-cal-nav-btn { width:28px;height:28px;border-radius:8px;background:var(--bm-white);border:1.5px solid var(--bm-border);color:var(--bm-slate);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;padding:0;transition:border-color .2s,color .2s; }
+    .bm-cal-nav-btn:hover { border-color:var(--bm-blue);color:var(--bm-blue); }
+    .bm-cal-dow { font-size:10px;color:var(--bm-slate);font-weight:600;padding:2px 0;text-transform:uppercase;letter-spacing:.4px; }
+    .b-cal-day-cell:hover { background:rgba(15,52,96,.1) !important; }
+    .bm-slot-panel { background:var(--bm-surface);border:1.5px solid var(--bm-border);border-radius:14px;padding:16px;min-height:220px; }
+    .bm-slot-heading { font-size:11px;color:var(--bm-slate);font-weight:500;margin-bottom:10px; }
+    .bm-spinner { color:var(--bm-blue) !important; }
+    .b-slot-btn-available:hover { background:rgba(15,52,96,.07) !important; }
+    .b-slot-btn-half:hover { background:#FEF3C7 !important; }
+    .bm-legend { display:flex;gap:16px;margin-top:10px;flex-wrap:wrap; }
+    .bm-legend-item { display:flex;align-items:center;gap:5px;font-size:11px;color:var(--bm-slate); }
+    .bm-legend-dot { width:11px;height:11px;border-radius:3px;display:inline-block; }
+    .bm-legend-available { border:2px solid var(--bm-blue);background:transparent; }
+    .bm-legend-half { border:2px solid #F59E0B;background:#FFF8E1; }
+    .bm-legend-full { background:var(--bm-border); }
+    .bm-price-summary { display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,var(--bm-blue) 0%,var(--bm-navy) 100%);border-radius:12px;padding:16px 20px;color:var(--bm-white); }
+    .bm-price-label { font-size:12px;color:rgba(238,238,238,.7);margin:0; }
+    .bm-price-value { font-size:20px;font-weight:700;color:var(--bm-white);margin:3px 0 0;letter-spacing:-.3px; }
+    .bm-price-icon { font-size:28px;color:rgba(238,238,238,.5); }
+    .bm-summary-card { background:var(--bm-surface);border:1.5px solid var(--bm-border);border-radius:14px;padding:20px;margin-bottom:14px; }
+    .bm-summary-title { font-size:13px;font-weight:700;color:var(--bm-text);margin-bottom:14px;letter-spacing:.1px; }
+    .bm-tbl-label { font-size:12px;color:var(--bm-slate);padding:4px 0; }
+    .bm-tbl-value { font-size:13px;font-weight:500;color:var(--bm-text);padding:4px 0; }
+    .bm-tbl-total-row { border-top:1.5px solid var(--bm-border); }
+    .bm-tbl-total-label { font-size:13px;font-weight:700;color:var(--bm-text); }
+    .bm-tbl-total-value { font-size:17px;font-weight:700;color:var(--bm-blue); }
+    .bm-info-box { background:#f0f4ff;border-radius:10px;padding:12px 14px;font-size:12px;color:var(--bm-blue);line-height:1.5; }
+    .invalid-feedback { font-size:11px;color:var(--bm-danger);margin-top:4px; }
 </style>
 
+<script src="{{ config('midtrans.snap_url') }}" data-client-key="{{ config('midtrans.client_key') }}"></script>
+
 {{-- ═══════════════════════════════════════════════════════════════════
-     JAVASCRIPT
-     ─ Saat ini : POST /booking → simpan transaksi → tampil pesan sukses
-     ─ Nanti (aktifkan Midtrans):
-         1. POST /booking          → dapat transaksi_id
-         2. POST /payment/snap-token (kirim transaksi_id) → dapat snap_token
-         3. snap.pay(snap_token)   → popup Midtrans
-         Tandai bagian [MIDTRANS] di bawah
+JAVASCRIPT — IIFE UTAMA
 ═══════════════════════════════════════════════════════════════════ --}}
 <script>
 (function () {
     'use strict';
 
-    // Data paket dari server (dipakai isi dropdown)
     const productPackets = {!! json_encode($packets) !!};
 
     const formatRp = (n) =>
@@ -353,20 +426,58 @@
 
     const formatDate = (s) => s
         ? new Intl.DateTimeFormat('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
-              .format(new Date(s))
+            .format(new Date(s + 'T00:00:00'))
         : '-';
 
-    // Set tanggal minimum = hari ini
-    document.getElementById('b_session_date')
-            .setAttribute('min', new Date().toISOString().split('T')[0]);
+    // ── Helper: menit → "X jam Y menit" ──────────────────────────────
+    function formatDuration(minutes) {
+        const jam   = Math.floor(minutes / 60);
+        const menit = minutes % 60;
+        let label   = '';
+        if (jam > 0)   label += jam + ' jam';
+        if (menit > 0) label += (label ? ' ' : '') + menit + ' menit';
+        return label || minutes + ' menit';
+    }
 
-    // ── Step navigation ──────────────────────────────────────────────
+    // ── Helper: tambah menit ke string "HH:MM" ────────────────────────
+    function addMinutesToTime(timeStr, minutes) {
+        const [h, m] = timeStr.split(':').map(Number);
+        const total  = h * 60 + m + minutes;
+        return String(Math.floor(total / 60)).padStart(2, '0') + ':' +
+               String(total % 60).padStart(2, '0');
+    }
+
+    // ── Preselect produk & paket (dari product-detail-modal) ──────────
+    window.bookingPreselect = function (productId, packetId) {
+        const productSel = document.getElementById('b_product_id');
+        productSel.value = productId;
+        bookingUpdatePackets();
+
+        setTimeout(() => {
+            const packetSel = document.getElementById('b_packet_id');
+            packetSel.value = packetId;
+            bookingUpdatePrice();
+
+            const productName = productSel.options[productSel.selectedIndex]?.dataset.productName ?? '';
+            const packetName  = packetSel.options[packetSel.selectedIndex]?.dataset.name ?? '';
+            const packetPrice = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
+
+            const banner = document.getElementById('booking-preselect-banner');
+            const info   = document.getElementById('banner-packet-info');
+            if (banner && info && packetName) {
+                info.textContent = `${productName} — ${packetName} · ${formatRp(packetPrice)}`;
+                banner.classList.remove('d-none');
+            }
+        }, 50);
+    };
+
+    // ── Step navigation ───────────────────────────────────────────────
     window.bookingNextStep = function (step) {
         if (step > 1 && !validateStep(step - 1)) return;
 
-        [1, 2, 3].forEach(i => {
+        [1,2,3].forEach(i => {
             document.getElementById(`booking-step-${i}`).classList.add('d-none');
-            document.getElementById(`step-indicator-${i}`).classList.remove('active', 'done');
+            document.getElementById(`step-indicator-${i}`).classList.remove('active','done');
         });
 
         document.querySelectorAll('.step-line').forEach((line, idx) => {
@@ -383,47 +494,49 @@
         el.classList.add('booking-step-fade');
         setTimeout(() => el.classList.remove('booking-step-fade'), 300);
 
+        if (step === 2 && !_calInitialized) { calInit(); _calInitialized = true; }
         if (step === 3) fillConfirmation();
     };
 
-    // ── Validasi per step ────────────────────────────────────────────
+    // ── Validasi per step ─────────────────────────────────────────────
     function validateStep(step) {
         let valid = true;
 
-        const ok  = (inputId, errId) => {
+        const clearErr = (inputId, errId) => {
             document.getElementById(inputId)?.classList.remove('is-invalid');
             document.getElementById(errId)?.classList.add('d-none');
         };
-        const err = (inputId, errId) => {
+        const setErr = (inputId, errId) => {
             document.getElementById(inputId)?.classList.add('is-invalid');
             document.getElementById(errId)?.classList.remove('d-none');
             valid = false;
         };
 
         if (step === 1) {
-            ok('b_customer_name', 'err_customer_name');
-            ok('b_phone_number',  'err_phone_number');
-
+            clearErr('b_customer_name','err_customer_name');
+            clearErr('b_phone_number','err_phone_number');
             if (!document.getElementById('b_customer_name').value.trim())
-                err('b_customer_name', 'err_customer_name');
-
+                setErr('b_customer_name','err_customer_name');
             if (!/^08\d{8,12}$/.test(document.getElementById('b_phone_number').value.trim()))
-                err('b_phone_number', 'err_phone_number');
+                setErr('b_phone_number','err_phone_number');
         }
 
         if (step === 2) {
-            ['b_product_id/err_product', 'b_packet_id/err_packet',
-             'b_session_date/err_date',  'b_session_time/err_time'].forEach(pair => {
-                const [iId, eId] = pair.split('/');
-                ok(iId, eId);
-                if (!document.getElementById(iId).value) err(iId, eId);
+            [
+                ['b_product_id','err_product'],
+                ['b_packet_id','err_packet'],
+                ['b_session_date','err_date'],
+                ['b_session_time','err_time'],
+            ].forEach(([iId,eId]) => {
+                clearErr(iId,eId);
+                if (!document.getElementById(iId).value) setErr(iId,eId);
             });
         }
 
         return valid;
     }
 
-    // ── Dropdown paket ───────────────────────────────────────────────
+    // ── Dropdown paket (+ simpan dataset.duration) ────────────────────
     window.bookingUpdatePackets = function () {
         const productSel = document.getElementById('b_product_id');
         const packetSel  = document.getElementById('b_packet_id');
@@ -431,16 +544,18 @@
         packetSel.innerHTML = '<option value="" data-price="0" disabled selected>-- Pilih Paket --</option>';
         packetSel.disabled  = true;
         document.getElementById('booking-price-summary').classList.add('d-none');
+        document.getElementById('b-duration-hint').classList.add('d-none');
 
         const name = productSel.options[productSel.selectedIndex]?.dataset.productName;
         if (!name || !productPackets[name]) return;
 
         productPackets[name].forEach(p => {
-            const opt        = document.createElement('option');
-            opt.value        = p.id;
-            opt.dataset.price = p.price;
-            opt.dataset.name  = p.name;
-            opt.textContent   = `${p.name} — ${formatRp(p.price)}`;
+            const opt = document.createElement('option');
+            opt.value               = p.id;
+            opt.dataset.price       = p.price;
+            opt.dataset.name        = p.name;
+            opt.dataset.duration    = p.duration_minutes ?? 60;  // ← DURASI
+            opt.textContent         = `${p.name} — ${formatRp(p.price)}`;
             packetSel.appendChild(opt);
         });
 
@@ -449,9 +564,12 @@
     };
 
     window.bookingUpdatePrice = function () {
-        const packetSel = document.getElementById('b_packet_id');
-        const price     = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
-        const summary   = document.getElementById('booking-price-summary');
+        const packetSel  = document.getElementById('b_packet_id');
+        const price      = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
+        const duration   = parseInt(packetSel.options[packetSel.selectedIndex]?.dataset.duration) || 0;
+        const summary    = document.getElementById('booking-price-summary');
+        const hintEl     = document.getElementById('b-duration-hint');
+        const hintText   = document.getElementById('b-duration-text');
 
         if (price > 0) {
             document.getElementById('booking-price-display').textContent = formatRp(price);
@@ -459,30 +577,55 @@
         } else {
             summary.classList.add('d-none');
         }
+
+        // Tampilkan hint durasi di bawah select paket
+        if (duration > 0) {
+            hintText.textContent = 'Durasi: ' + formatDuration(duration);
+            hintEl.classList.remove('d-none');
+        } else {
+            hintEl.classList.add('d-none');
+        }
+
+        // Refresh slot jika tanggal sudah dipilih — karena durasi bisa berubah
+        const selectedDate = document.getElementById('b_session_date').value;
+        if (selectedDate && packetSel.value) {
+            document.getElementById('b_session_time').value = ''; // reset slot terpilih
+            fetchAndRenderSlots(selectedDate);
+        }
     };
 
-    // ── Isi ringkasan di step 3 ──────────────────────────────────────
+    // ── Isi ringkasan step 3 ──────────────────────────────────────────
     function fillConfirmation() {
-        const productSel = document.getElementById('b_product_id');
-        const packetSel  = document.getElementById('b_packet_id');
-        const price      = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
+        const productSel  = document.getElementById('b_product_id');
+        const packetSel   = document.getElementById('b_packet_id');
+        const price       = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
+        const duration    = parseInt(packetSel.options[packetSel.selectedIndex]?.dataset.duration) || 0;
+        const sessionTime = document.getElementById('b_session_time').value;
 
-        document.getElementById('confirm_name').textContent    = document.getElementById('b_customer_name').value;
-        document.getElementById('confirm_phone').textContent   = document.getElementById('b_phone_number').value;
-        document.getElementById('confirm_product').textContent = productSel.options[productSel.selectedIndex]?.text || '-';
-        document.getElementById('confirm_packet').textContent  = packetSel.options[packetSel.selectedIndex]?.dataset.name || '-';
-        document.getElementById('confirm_date').textContent    = formatDate(document.getElementById('b_session_date').value);
-        document.getElementById('confirm_time').textContent    = document.getElementById('b_session_time').value + ' WIB';
-        document.getElementById('confirm_total').textContent   = formatRp(price);
+        document.getElementById('confirm_name').textContent     = document.getElementById('b_customer_name').value;
+        document.getElementById('confirm_phone').textContent    = document.getElementById('b_phone_number').value;
+        document.getElementById('confirm_product').textContent  = productSel.options[productSel.selectedIndex]?.dataset.productName || '-';
+        document.getElementById('confirm_packet').textContent   = packetSel.options[packetSel.selectedIndex]?.dataset.name || '-';
+        document.getElementById('confirm_duration').textContent = duration ? formatDuration(duration) : '-';
+        document.getElementById('confirm_date').textContent     = formatDate(document.getElementById('b_session_date').value);
+        document.getElementById('confirm_time').textContent     = sessionTime ? sessionTime + ' WIB' : '-';
+        document.getElementById('confirm_total').textContent    = formatRp(price);
+
+        // Hitung jam selesai
+        if (sessionTime && duration) {
+            const endTime = addMinutesToTime(sessionTime, duration);
+            document.getElementById('confirm_end_time').textContent = endTime + ' WIB';
+        } else {
+            document.getElementById('confirm_end_time').textContent = '-';
+        }
     }
 
-    // ── Submit booking ───────────────────────────────────────────────
+    // ── Submit → Midtrans Snap ────────────────────────────────────────
     window.bookingSubmit = async function () {
         const loadingEl = document.getElementById('booking-loading');
         const actionEl  = document.getElementById('booking-action-btns');
         const closeBtn  = document.getElementById('bookingCloseBtn');
 
-        // Tampilkan loading, sembunyikan tombol
         loadingEl.classList.remove('d-none');
         actionEl.classList.add('d-none');
         closeBtn.disabled = true;
@@ -497,8 +640,7 @@
         };
 
         try {
-            // ── STEP 1: Simpan booking ke database ───────────────────
-            const bookingRes = await fetch('{{ route('booking.store') }}', {
+            const snapRes = await fetch('{{ route("booking.snap-token") }}', {
                 method  : 'POST',
                 headers : {
                     'Content-Type' : 'application/json',
@@ -508,50 +650,35 @@
                 body: JSON.stringify(payload),
             });
 
-            const bookingData = await bookingRes.json();
+            const snapData = await snapRes.json();
 
-            if (!bookingRes.ok) {
-                // Tampilkan pesan error dari server
-                const errMsg = bookingData.errors
-                    ? Object.values(bookingData.errors).flat().join('\n')
-                    : (bookingData.message || 'Terjadi kesalahan.');
+            if (!snapRes.ok) {
+                const errMsg = snapData.errors
+                    ? Object.values(snapData.errors).flat().join('\n')
+                    : (snapData.message || 'Terjadi kesalahan.');
                 throw new Error(errMsg);
             }
 
-            // ── [MIDTRANS] Uncomment blok ini saat Midtrans siap ─────
-            // ─ STEP 2: Minta Snap Token dari PaymentController ────────
-            // const snapRes = await fetch('{{ url('/payment/snap-token') }}', {
-            //     method  : 'POST',
-            //     headers : {
-            //         'Content-Type' : 'application/json',
-            //         'Accept'       : 'application/json',
-            //         'X-CSRF-TOKEN' : document.querySelector('meta[name="csrf-token"]').content,
-            //     },
-            //     body: JSON.stringify({ transaksi_id: bookingData.transaksi_id }),
-            // });
-            // const snapData = await snapRes.json();
-            // if (!snapRes.ok) throw new Error(snapData.message || 'Gagal memproses pembayaran.');
-            //
-            // ─ STEP 3: Sembunyikan modal, buka popup Midtrans ─────────
-            // const bsModal = bootstrap.Modal.getInstance(document.getElementById('bookingModal'));
-            // bsModal.hide();
-            //
-            // snap.pay(snapData.snap_token, {
-            //     onSuccess : (r) => { window.location.href = `{{ url('/payment/success') }}?order_id=${r.order_id}`; },
-            //     onPending : (r) => { window.location.href = `{{ url('/payment/success') }}?order_id=${r.order_id}&status=pending`; },
-            //     onError   : (r) => { window.location.href = `{{ url('/payment/failed') }}?order_id=${r.order_id}`; },
-            //     onClose   : ()  => {
-            //         bsModal.show();
-            //         loadingEl.classList.add('d-none');
-            //         actionEl.classList.remove('d-none');
-            //         closeBtn.disabled = false;
-            //     },
-            // });
-            // return; // stop di sini saat Midtrans aktif
-            // ── [/MIDTRANS] ───────────────────────────────────────────
+            const bookingModalEl = document.getElementById('bookingModal');
+            const bsModal        = bootstrap.Modal.getInstance(bookingModalEl);
 
-            // Saat ini (tanpa Midtrans): tampilkan pesan sukses di dalam modal
-            showSuccess(payload.customer_name, payload.phone_number);
+            window._bookingGoingToSnap = true;
+            if (document.activeElement) document.activeElement.blur();
+            document.body.focus();
+            bsModal.hide();
+
+            snap.pay(snapData.snap_token, {
+                onSuccess : (r) => { window._bookingGoingToSnap = false; window.location.href = `{{ route("payment.success") }}?order_id=${r.order_id}`; },
+                onPending : (r) => { window._bookingGoingToSnap = false; window.location.href = `{{ route("payment.success") }}?order_id=${r.order_id}&status=pending`; },
+                onError   : (r) => { window._bookingGoingToSnap = false; window.location.href = `{{ route("payment.failed") }}?order_id=${r.order_id}`; },
+                onClose   : () => {
+                    window._bookingGoingToSnap = false;
+                    bsModal.show();
+                    loadingEl.classList.add('d-none');
+                    actionEl.classList.remove('d-none');
+                    closeBtn.disabled = false;
+                },
+            });
 
         } catch (error) {
             loadingEl.classList.add('d-none');
@@ -561,45 +688,308 @@
         }
     };
 
-    // ── Tampilkan pesan sukses di dalam modal (tanpa redirect) ───────
-    function showSuccess(name, phone) {
-        document.getElementById('booking-modal-body').innerHTML = `
-            <div class="text-center py-4">
-                <i class="mdi mdi-check-circle text-success" style="font-size:72px"></i>
-                <h4 class="fw-bold mt-3 mb-2">Booking Berhasil!</h4>
-                <p class="text-muted mb-1">Terima kasih, <strong>${name}</strong>!</p>
-                <p class="text-muted mb-4">
-                    Tim kami akan menghubungi Anda di nomor<br>
-                    <strong>${phone}</strong> untuk konfirmasi lebih lanjut.
-                </p>
-                <button class="btn btn-success rounded-pill px-5" data-bs-dismiss="modal">
-                    Tutup
-                </button>
-            </div>
-        `;
-    }
-
-    // ── Tampilkan error di dalam modal (bukan alert) ─────────────────
     function showInlineError(message) {
         const existing = document.getElementById('booking-inline-error');
         if (existing) existing.remove();
-
         const div = document.createElement('div');
-        div.id        = 'booking-inline-error';
+        div.id = 'booking-inline-error';
         div.className = 'alert alert-danger rounded-3 mt-3 mb-0';
         div.innerHTML = `<i class="mdi mdi-alert-circle-outline me-1"></i>${message}`;
-
         document.getElementById('booking-action-btns').insertAdjacentElement('beforebegin', div);
     }
 
-    // ── Reset modal saat ditutup ─────────────────────────────────────
+    // ── Reset saat modal ditutup ──────────────────────────────────────
     document.getElementById('bookingModal').addEventListener('hidden.bs.modal', function () {
-        // Kembalikan body modal ke konten awal (penting jika showSuccess mengganti innerHTML)
-        location.reload();
+        if (window._bookingGoingToSnap) {
+            if (document.activeElement) document.activeElement.blur();
+            document.body.focus();
+            return;
+        }
 
-        // Catatan: jika tidak ingin reload halaman, bisa simpan HTML awal ke variabel
-        // dan restore di sini. Tapi reload lebih simpel dan aman.
+        ['b_customer_name','b_phone_number'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.value=''; el.classList.remove('is-invalid'); }
+        });
+        ['b_product_id'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.selectedIndex=0; el.classList.remove('is-invalid'); }
+        });
+        ['b_session_date','b_session_time'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.value=''; el.classList.remove('is-invalid'); }
+        });
+
+        const packetSelect = document.getElementById('b_packet_id');
+        if (packetSelect) {
+            packetSelect.innerHTML = '<option value="" data-price="0" disabled selected>-- Pilih Paket --</option>';
+            packetSelect.disabled  = true;
+        }
+
+        document.getElementById('booking-preselect-banner')?.classList.add('d-none');
+        document.getElementById('booking-price-summary')?.classList.add('d-none');
+        document.getElementById('b-duration-hint')?.classList.add('d-none');
+        document.getElementById('booking-loading')?.classList.add('d-none');
+        document.getElementById('booking-action-btns')?.classList.remove('d-none');
+        document.getElementById('bookingCloseBtn') && (document.getElementById('bookingCloseBtn').disabled = false);
+        document.getElementById('booking-inline-error')?.remove();
+
+        bookingNextStep(1);
+        calReset();
+
+        if (document.activeElement) document.activeElement.blur();
+        document.body.focus();
     });
 
 })();
+</script>
+
+{{-- ═══════════════════════════════════════════════════════════════════
+JAVASCRIPT — KALENDER & SLOT WAKTU
+═══════════════════════════════════════════════════════════════════ --}}
+<script>
+(function () {
+    'use strict';
+
+    let _calYear         = null;
+    let _calMonth        = null;
+    let _calSelectedDate = null;
+    let _selectedSlot    = null;
+    let _currentSlots    = [];
+
+    window._calInitialized = false;
+
+    window.calInit = function () {
+        const today     = new Date();
+        _calYear        = today.getFullYear();
+        _calMonth       = today.getMonth();
+        _calSelectedDate = null;
+        _selectedSlot   = null;
+        _currentSlots   = [];
+        window._calInitialized = true;
+
+        document.getElementById('b_session_date').value = '';
+        document.getElementById('b_session_time').value = '';
+
+        renderCalendar();
+        clearSlotGrid();
+    };
+
+    window.calReset = function () {
+        window._calInitialized = false;
+        calInit();
+    };
+
+    function renderCalendar() {
+        const rawLabel = new Date(_calYear, _calMonth, 1)
+            .toLocaleDateString('id-ID', { month:'long', year:'numeric' });
+        document.getElementById('b-cal-label').textContent =
+            rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+
+        const grid        = document.getElementById('b-cal-days');
+        grid.innerHTML    = '';
+
+        const firstDay    = new Date(_calYear, _calMonth, 1).getDay();
+        const offset      = firstDay === 0 ? 6 : firstDay - 1;
+        const daysInMonth = new Date(_calYear, _calMonth + 1, 0).getDate();
+        const prevDays    = new Date(_calYear, _calMonth, 0).getDate();
+        const today       = new Date(); today.setHours(0,0,0,0);
+
+        for (let i = 0; i < offset; i++) {
+            grid.appendChild(makeEmptyCell(prevDays - offset + 1 + i));
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const cellDate = new Date(_calYear, _calMonth, d);
+            const dateStr  = toDateStr(_calYear, _calMonth, d);
+            const isPast   = cellDate < today;
+            const isSel    = dateStr === _calSelectedDate;
+            const isToday  = cellDate.toDateString() === today.toDateString();
+
+            let circleStyle = 'width:30px;height:30px;font-size:12px;display:flex;' +
+                              'align-items:center;justify-content:center;border-radius:50%;margin:auto;';
+
+            if (isPast)       circleStyle += 'opacity:.3;color:#6c757d;cursor:not-allowed;';
+            else if (isSel)   circleStyle += 'background:#0f3460;color:#fff;font-weight:600;cursor:pointer;';
+            else if (isToday) circleStyle += 'border:2px solid #0f3460;color:#0f3460;font-weight:600;cursor:pointer;';
+            else              circleStyle += 'color:#1A1A2E;cursor:pointer;';
+
+            const col    = document.createElement('div');
+            col.className = 'col text-center py-1';
+
+            const circle = document.createElement('div');
+            circle.style.cssText = circleStyle;
+            circle.textContent   = d;
+            if (!isPast) circle.classList.add('b-cal-day-cell');
+
+            if (!isPast) {
+                circle.onclick = () => {
+                    _calSelectedDate = dateStr;
+                    _selectedSlot    = null;
+                    document.getElementById('b_session_date').value = dateStr;
+                    document.getElementById('b_session_time').value = '';
+                    document.getElementById('b_session_date').classList.remove('is-invalid');
+                    document.getElementById('err_date').classList.add('d-none');
+                    renderCalendar();
+                    fetchAndRenderSlots(dateStr);
+                };
+            }
+
+            col.appendChild(circle);
+            grid.appendChild(col);
+        }
+
+        const remaining = 42 - offset - daysInMonth;
+        for (let i = 1; i <= remaining; i++) {
+            grid.appendChild(makeEmptyCell(i));
+        }
+    }
+
+    function makeEmptyCell(num) {
+        const c = document.createElement('div');
+        c.className = 'col text-center py-1';
+        c.innerHTML = `<span style="font-size:12px;color:#ccc;display:block">${num}</span>`;
+        return c;
+    }
+
+    function toDateStr(y, m, d) {
+        return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+
+    // ── Fetch slot — sertakan packet_id agar backend tahu durasi ─────
+    window.fetchAndRenderSlots = async function (dateStr) {
+        const loadingEl = document.getElementById('b-slot-loading');
+        const gridEl    = document.getElementById('b-slot-grid');
+
+        loadingEl.classList.remove('d-none');
+        gridEl.innerHTML = '';
+
+        try {
+            // ── BARU: tambahkan packet_id ke query string ──
+            const packetId = document.getElementById('b_packet_id').value;
+            const url      = packetId
+                ? `/booking/available-slots?date=${dateStr}&packet_id=${packetId}`
+                : `/booking/available-slots?date=${dateStr}`;
+
+            const res = await fetch(url, {
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept'      : 'application/json',
+                }
+            });
+            if (!res.ok) throw new Error('Gagal memuat slot.');
+            const data = await res.json();
+            _currentSlots = data.slots || [];
+        } catch (e) {
+            _currentSlots = [];
+        }
+
+        loadingEl.classList.add('d-none');
+        renderSlots(dateStr);
+    };
+
+    function renderSlots(dateStr) {
+        const grid    = document.getElementById('b-slot-grid');
+        const heading = document.getElementById('b-slot-heading');
+        grid.innerHTML = '';
+
+        if (!dateStr) {
+            heading.textContent = 'Pilih tanggal terlebih dahulu';
+            return;
+        }
+
+        const dObj  = new Date(dateStr + 'T00:00:00');
+        const label = dObj.toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+        heading.textContent = `Pilih waktu di tanggal ${label}`;
+
+        if (_currentSlots.length === 0) {
+            grid.innerHTML = '<div class="col-12"><p class="small text-muted">Tidak ada slot tersedia.</p></div>';
+            return;
+        }
+
+        _currentSlots.forEach(slot => {
+            const col = document.createElement('div');
+            col.className = 'col';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = slot.time + ' WIB';
+            btn.style.cssText =
+                'width:100%;font-size:12px;padding:8px 4px;border-radius:8px;' +
+                'font-weight:500;border:2px solid;transition:background .15s,color .15s;';
+
+            const isSelected = slot.time === _selectedSlot;
+
+            if (!slot.available) {
+                btn.disabled = true;
+                btn.style.borderColor    = '#e9ecef';
+                btn.style.color          = '#adb5bd';
+                btn.style.background     = '#f8f9fc';
+                btn.style.textDecoration = 'line-through';
+                btn.style.cursor         = 'not-allowed';
+            } else if (slot.booked === 1) {
+                applySlotStyle(btn, isSelected, 'half');
+                btn.classList.add('b-slot-btn-half');
+            } else {
+                applySlotStyle(btn, isSelected, 'available');
+                btn.classList.add('b-slot-btn-available');
+            }
+
+            if (slot.available) {
+                btn.onclick = () => selectSlot(slot.time, dateStr);
+            }
+
+            col.appendChild(btn);
+            grid.appendChild(col);
+        });
+    }
+
+    function applySlotStyle(btn, isSelected, type) {
+        if (isSelected) {
+            btn.style.borderColor = '#0f3460';
+            btn.style.background  = '#0f3460';
+            btn.style.color       = '#ffffff';
+        } else if (type === 'half') {
+            btn.style.borderColor = '#F59E0B';
+            btn.style.background  = '#FFF8E1';
+            btn.style.color       = '#92400E';
+        } else {
+            btn.style.borderColor = '#0f3460';
+            btn.style.background  = 'transparent';
+            btn.style.color       = '#0f3460';
+        }
+    }
+
+    function selectSlot(time, dateStr) {
+        _selectedSlot = time;
+        document.getElementById('b_session_time').value = time;
+        document.getElementById('b_session_time').classList.remove('is-invalid');
+        document.getElementById('err_time').classList.add('d-none');
+        renderSlots(dateStr);
+    }
+
+    function clearSlotGrid() {
+        document.getElementById('b-slot-grid').innerHTML    = '';
+        document.getElementById('b-slot-heading').textContent = 'Pilih tanggal terlebih dahulu';
+    }
+
+    document.getElementById('b-cal-prev').addEventListener('click', () => {
+        _calMonth--;
+        if (_calMonth < 0) { _calMonth = 11; _calYear--; }
+        renderCalendar();
+    });
+
+    document.getElementById('b-cal-next').addEventListener('click', () => {
+        _calMonth++;
+        if (_calMonth > 11) { _calMonth = 0; _calYear++; }
+        renderCalendar();
+    });
+
+})();
+</script>
+
+<script>
+document.getElementById('bookingModal').addEventListener('shown.bs.modal', function () {
+    const closeBtn = document.getElementById('bookingCloseBtn');
+    if (closeBtn) closeBtn.blur();
+});
 </script>

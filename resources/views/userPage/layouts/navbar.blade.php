@@ -3,7 +3,7 @@
 
     <div class="container-fluid px-0">
         {{-- Logo --}}
-        <a href="{{ url('/user') }}" class="navbar-brand fw-bold text-uppercase text-dark"
+        <a href="{{ url('/') }}" class="navbar-brand fw-bold text-uppercase text-dark"
             style="font-size: 1.25 rem; letter-spacing: 0.15em;">
             Yunas Studio
         </a>
@@ -20,32 +20,38 @@
             {{-- Menu Tengah --}}
             <ul class="navbar-nav mx-auto gap-md-4">
                 <li class="nav-item">
-                    <a href="#paket"
+                    <a href="{{ route('userPage.home') }}#paket"
                         class="nav-link text-dark {{ request()->is('paket') ? 'fw-semibold' : 'fw-normal' }}">
                         Paket
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#galeri" class="nav-link text-dark">
+                    <a href="{{ route('userPage.home') }}#galeri" class="nav-link text-dark">
                         Galeri
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#cara-booking"
+                    <a href="{{ route('userPage.home') }}#cara-booking"
                         class="nav-link text-dark {{ request()->is('cara-booking') ? 'fw-semibold' : 'fw-normal' }}">
                         Cara Booking
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url('/kontak') }}"
-                        class="nav-link text-dark {{ request()->is('kontak') ? 'fw-semibold' : 'fw-normal' }}">
+                    <a href="{{ route('kontak') }}"
+                        class="nav-link text-dark">
                         Kontak
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ route('schedule') }}"
+                        class="nav-link text-dark">
+                        Jadwal / Pesanan
                     </a>
                 </li>
             </ul>
 
             {{-- Tombol CTA --}}
-            <a class="btn btn-dark rounded-2 px-4 py-2 ms-md-3"data-bs-toggle="modal" data-bs-target="#bookingModal"
+            <a class="btn btn-dark rounded-2 px-4 py-2 ms-md-3" data-bs-toggle="modal" data-bs-target="#bookingModal"
                 style="font-size: 0.875rem;">
                 Booking Sekarang
             </a>
