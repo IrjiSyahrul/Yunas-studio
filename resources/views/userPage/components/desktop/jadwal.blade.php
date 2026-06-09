@@ -1,13 +1,5 @@
 
-
-{{-- ═══════════════════════════════════════════════════════════════
-     HALAMAN JADWAL
-     Design: selaras dengan booking-modal (navy #1a1a2e / #0f3460)
-     Layout: split — kiri kalender navigasi, kanan grid slot
-═══════════════════════════════════════════════════════════════ --}}
-
 <div class="sch-page">
-
     {{-- ── Hero header ─────────────────────────────────────────── --}}
     <div class="sch-hero">
         <div class="sch-hero-inner">
@@ -583,9 +575,7 @@
 }
 </style>
 
-{{-- ═══════════════════════════════════════════════════════════════════
-     JAVASCRIPT
-═══════════════════════════════════════════════════════════════════ --}}
+
 <script>
 (function () {
 'use strict';
@@ -1023,9 +1013,6 @@ window.rsBackToList = function () {
     if (_selectedDate) renderSlotGrid(_selectedDate);
 };
 
-/* ═══════════════════════════════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════════════════════════════ */
 renderCalendar();
 
 // Auto-load hari ini
@@ -1034,4 +1021,3 @@ selectDate(todayStr);
 
 })();
 </script>
-

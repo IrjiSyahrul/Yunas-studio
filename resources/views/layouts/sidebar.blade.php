@@ -3,7 +3,7 @@
 
     <!-- LOGO -->
     <div class="navbar-brand-box">
-        <a href="{{Auth::user()->isUser() ? url('transaksi') : url('index')}}" class="logo logo-dark">
+        <a href="{{Auth::user()->isUser() ? url('transaksi') : url('dashboard')}}" class="logo logo-dark">
             <span class="logo-sm">
                 <img src="{{ URL::asset('/assets/images/yunas_dark.png') }}" alt="" height="12">
             </span>
@@ -12,7 +12,7 @@
             </span>
         </a>
 
-        <a href="{{url('index')}}" class="logo logo-light">
+        <a href="{{url('dashboard')}}" class="logo logo-light">
             <span class="logo-sm">
                 <img src="{{ URL::asset('/assets/images/yunas_dark.png') }}" alt="" height="12">
             </span>
@@ -36,7 +36,7 @@
 
                 @can('viewAny', App\Models\Expense::class)
                     <li>
-                        <a href="{{url('index')}}">
+                        <a href="{{url('dashboard')}}" class="waves-effect">
                             <i class="uil-home-alt"></i>
                             <span>@lang('translation.Dashboard')</span>
                         </a>
