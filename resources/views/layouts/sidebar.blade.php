@@ -36,7 +36,7 @@
 
                 @can('viewAny', App\Models\Expense::class)
                     <li>
-                        <a href="{{url('dashboard')}}" class="waves-effect">
+                        <a href="{{url('index')}}">
                             <i class="uil-home-alt"></i>
                             <span>@lang('translation.Dashboard')</span>
                         </a>
