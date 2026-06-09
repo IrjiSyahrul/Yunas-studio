@@ -61,11 +61,7 @@ class PaymentController extends Controller
             }
 
             // ── Status GAGAL / EXPIRED dari Midtrans ─────────────────────
-            // PERBAIKAN: status diubah ke 'cancelled' (bukan 'gagal').
-            // Alasannya: BookingController menghitung slot hanya dari ACTIVE_STATUSES
-            // ['pending', 'sudah dibayar', 'menunggu konfirmasi'].
-            // Status 'cancelled' tidak ada di daftar itu, sehingga slot
-            // otomatis terbebas dan bisa dipesan orang lain.
+            
             if (in_array($txStatus, ['cancel', 'deny', 'expire'])) {
                 $transaksi->status = 'gagal';
                 $transaksi->save();
@@ -95,8 +91,7 @@ class PaymentController extends Controller
                 $transaksi->payment_type   = $this->mapPaymentType($paymentType);
                 $transaksi->process_status = 'Pelanggan Belum Foto';
 
-                // receipt_code TIDAK di-generate ulang di sini karena
-                // sudah dibuat di BookingController saat transaksi pertama dibuat.
+                
                 // Men-generate ulang akan memutus referensi ke Midtrans order_id.
 
                 $transaksi->save();
@@ -137,16 +132,12 @@ class PaymentController extends Controller
             return view('userPage.layouts.success', ['booking' => null]);
         }
 
-        // PERBAIKAN: session_date & session_time diambil langsung dari kolom DB,
-        // bukan di-parse dari kolom 'note' seperti kode lama.
-        // Kode lama rapuh — jika format note berubah, data jadi null/salah.
-        // BookingController sudah menyimpan kedua kolom ini sejak awal.
         $booking = (object) [
             'order_id'      => $transaksi->order_id,
             'customer_name' => $transaksi->customer_name,
             'phone_number'  => $transaksi->phone_number,
-            'session_date'  => $transaksi->session_date,  // ← langsung dari kolom
-            'session_time'  => $transaksi->session_time,  // ← langsung dari kolom
+            'session_date'  => $transaksi->session_date,  
+            'session_time'  => $transaksi->session_time,  
             'total_price'   => $transaksi->total_price,
             'status'        => $transaksi->status,
             'payment_type'  => $transaksi->payment_type,

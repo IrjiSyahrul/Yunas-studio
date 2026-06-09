@@ -1,6 +1,4 @@
-
 <div class="sch-page">
-
     {{-- ── Hero header ─────────────────────────────────────────── --}}
     <div class="sch-hero">
         <div class="sch-hero-inner">
@@ -1016,9 +1014,7 @@ window.rsBackToList = function () {
     if (_selectedDate) renderSlotGrid(_selectedDate);
 };
 
-/* ═══════════════════════════════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════════════════════════════ */
+
 renderCalendar();
 
 // Auto-load hari ini

@@ -18,32 +18,18 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class BookingController extends Controller
 {
-    // ═══════════════════════════════════════════════════════════════════
-    // HELPER — Generate semua slot dalam 1 hari (10:00 – 18:00, per 30m)
-    // Mengembalikan array string: ['10:00', '10:30', '11:00', ...]
-    // ═══════════════════════════════════════════════════════════════════
+   
     private function generateAllSlots(): array
     {
         $slots = [];
         for ($h = 10; $h <= 18; $h++) {
             foreach ([0, 30] as $m) {
-                // 18:30 tidak ada — batas akhir adalah 18:00
                 if ($h === 18 && $m === 30) break;
                 $slots[] = sprintf('%02d:%02d', $h, $m);
             }
         }
         return $slots; // 17 slot: 10:00 s.d. 18:00
     }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // HELPER — Dari 1 slot awal + durasi, hitung semua slot yang terpakai
-    //
-    // Contoh: startTime='10:00', durationMinutes=60
-    //   → slot yang terpakai: ['10:00', '10:30']  (2 slot × 30 menit)
-    //
-    // Contoh: startTime='10:00', durationMinutes=120
-    //   → slot yang terpakai: ['10:00', '10:30', '11:00', '11:30']
-    // ═══════════════════════════════════════════════════════════════════
     private function getOccupiedSlots(string $startTime, int $durationMinutes): array
     {
         $slots    = [];
