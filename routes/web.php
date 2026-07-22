@@ -17,6 +17,8 @@ use App\Http\Controllers\AdditionalDefaultController;
 use App\Http\Controllers\User\PaymentController;
 use App\Http\Controllers\User\BookingController;
 use App\Http\Controllers\User\ScheduleController;
+use App\Http\Controllers\User\KontakController;
+use App\Http\Controllers\User\GaleriController;
  
 // ── Halaman Jadwal ────────────────────────────────────────────────────
 Route::get('/jadwal', [ScheduleController::class, 'index'])
@@ -46,9 +48,8 @@ Route::post('/jadwal/reschedule', [ScheduleController::class, 'reschedule'])
     ->name('booking.available-slots');
 
     //galeri
-    Route::get('/galeri', function () {return view('userPage.galeri');})->name('galeri');
-    Route::get('/kontak', function () {return view('userPage.kontak');})->name('kontak');
-
+    Route::get('/galeri', [GaleriController::class, 'index'])->name('galeri');
+    Route::get('/kontak', [KontakController::class, 'index'])->name('kontak');
 
     // ── Payment (Midtrans) ───────────────────────────────────────────────────
     Route::post('/booking/snap-token', [BookingController::class, 'createSnapToken'])->name('booking.snap-token');
@@ -124,4 +125,4 @@ Route::middleware(['auth'])->group(function () {
 
 Route::get('index/{locale}', [HomeController::class, 'lang']);
 Route::post('/formsubmit', [HomeController::class, 'FormSubmit'])->name('FormSubmit');
-// Route::get('{any}', [HomeController::class, 'index'])->where('any', '.*');
+Route::get('{any}', [HomeController::class, 'index'])->where('any', '.*');
