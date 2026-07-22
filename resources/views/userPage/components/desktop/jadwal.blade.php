@@ -526,6 +526,7 @@
 }
 .rs-item-status-paid   { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
 .rs-item-status-unpaid { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+.rs-item-status-dp { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
 
 /* ── Booking terpilih badge ── */
 .rs-booking-badge {
@@ -848,8 +849,23 @@ function renderBookingList() {
         const item = document.createElement('div');
         item.className = 'rs-booking-item';
 
-        const statusClass = b.status === 'sudah dibayar' ? 'rs-item-status-paid' : 'rs-item-status-unpaid';
-        const statusLabel = b.status === 'sudah dibayar' ? 'Sudah Dibayar' : 'Belum Dibayar';
+        // ── Tentukan label & class berdasarkan 3 kemungkinan status ──
+        let statusClass, statusLabel;
+        if (b.status === 'sudah dibayar') {
+            statusClass = 'rs-item-status-paid';
+            statusLabel = 'Lunas';
+        } else if (b.status === 'dp') {
+            statusClass = 'rs-item-status-dp';
+            statusLabel = 'DP (Uang Muka)';
+        } else {
+            statusClass = 'rs-item-status-unpaid';
+            statusLabel = 'Belum Dibayar';
+        }
+
+        // ── Info sisa tagihan, hanya tampil jika status DP ──
+        const remainingInfo = (b.status === 'dp' && b.remaining > 0)
+            ? `<span class="rs-item-badge rs-item-status-dp">Sisa ${formatRp(b.remaining)}</span>`
+            : '';
 
         item.innerHTML = `
             <p class="rs-item-order">${b.order_id}</p>
@@ -858,6 +874,7 @@ function renderBookingList() {
                 <span class="rs-item-badge">${formatDateShort(b.session_date)}</span>
                 <span class="rs-item-badge">${b.session_time} WIB</span>
                 <span class="rs-item-badge ${statusClass}">${statusLabel}</span>
+                ${remainingInfo}
             </div>
         `;
 

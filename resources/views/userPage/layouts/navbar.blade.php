@@ -51,7 +51,7 @@
             </ul>
 
             {{-- Tombol CTA --}}
-            <a class="btn btn-dark rounded-2 px-4 py-2 ms-md-3" data-bs-toggle="modal" data-bs-target="#bookingModal"
+            <a class="btn btn-dark rounded-2 px-4 py-2 ms-md-3" href="{{ route('userPage.home') }}#cara-booking"
                 style="font-size: 0.875rem;">
                 Booking Sekarang
             </a>

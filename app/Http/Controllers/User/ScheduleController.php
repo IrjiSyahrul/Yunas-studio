@@ -9,12 +9,29 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\Additional;
+
 
 class ScheduleController extends Controller
 {
+    // ── Status transaksi yang dianggap "aktif" / berhak reschedule ──────
+    // 'belum dibayar' → belum bayar sama sekali, tapi slot sudah terkunci
+    // 'dp'            → sudah bayar sebagian (DP), sisa belum lunas
+    // 'sudah dibayar' → sudah lunas penuh
+    // 'gagal'         → SENGAJA tidak dimasukkan, karena slot sudah dilepas
+    private const ACTIVE_STATUSES = ['belum dibayar', 'dp', 'sudah dibayar'];
+
     public function index()
     {
-        return view('userPage.schedule');
+        $packets = Packet::with('product')
+            ->where('is_active', 1)
+            ->get()
+            ->groupBy('product.name');
+
+        $all_additionals = Additional::where('price', '>', 0)
+            ->orderBy('name')
+            ->get();
+        return view('userPage.schedule', compact('packets', 'all_additionals'));
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -71,7 +88,7 @@ class ScheduleController extends Controller
     // POST /jadwal/cari-booking
     // Body: { identifier: "08xxx..." atau "INV/..." }
     //
-    // Mengembalikan semua booking aktif (belum dibayar / sudah dibayar)
+    // Mengembalikan semua booking aktif (belum dibayar / DP / sudah dibayar)
     // milik nomor HP atau order ID tersebut.
     // ═══════════════════════════════════════════════════════════════════
     public function cariBooking(Request $request): JsonResponse
@@ -84,7 +101,7 @@ class ScheduleController extends Controller
 
         // Cari berdasarkan nomor HP atau order_id
         $query = Transaksi::with('packet:id,name,duration_minutes,price')
-            ->whereIn('status', ['belum dibayar', 'sudah dibayar'])
+            ->whereIn('status', self::ACTIVE_STATUSES)
             // Hanya booking yang tanggalnya hari ini atau ke depan
             ->whereDate('session_date', '>=', now()->toDateString())
             ->where(function ($q) use ($identifier) {
@@ -106,6 +123,10 @@ class ScheduleController extends Controller
                 'session_time'   => $t->session_time,
                 'status'         => $t->status,
                 'total_price'    => $t->total_price,
+                'dp_amount'      => $t->dp_amount,
+                'remaining'      => $t->status === 'dp'
+                                        ? $t->total_price - $t->dp_amount
+                                        : 0,
             ];
         });
 
@@ -126,7 +147,7 @@ class ScheduleController extends Controller
     //
     // Validasi:
     // 1. Transaksi milik identifier (HP / order_id)
-    // 2. Status masih 'belum dibayar' atau 'sudah dibayar'
+    // 2. Status masih 'belum dibayar', 'dp', atau 'sudah dibayar'
     // 3. Slot baru tidak penuh (mempertimbangkan durasi paket)
     // 4. Slot baru tidak sama dengan slot lama
     // 5. Tanggal baru tidak di masa lalu
@@ -149,7 +170,7 @@ class ScheduleController extends Controller
                 $q->where('phone_number', $identifier)
                   ->orWhere('order_id', $identifier);
             })
-            ->whereIn('status', ['belum dibayar', 'sudah dibayar'])
+            ->whereIn('status', self::ACTIVE_STATUSES)
             ->first();
 
         if (!$transaksi) {

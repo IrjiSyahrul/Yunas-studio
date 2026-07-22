@@ -1,11 +1,17 @@
 {{--
 =====================================================================
-BOOKING MODAL — Versi dengan fitur DURASI PAKET
+BOOKING MODAL — Versi dengan fitur DURASI PAKET + TAMBAHAN EKSTRA
 =====================================================================
-Perubahan dari versi lama:
+Perubahan dari versi sebelumnya:
 1. bookingUpdatePackets → tambah dataset.duration di option paket
 2. bookingUpdatePrice → refresh slot saat paket diganti
 3. fetchAndRenderSlots → kirim packet_id ke /booking/available-slots
+4. Tambahan Ekstra (additional) sekarang benar-benar terhubung ke:
+   - Perhitungan getTotalPrice() (paket + tambahan)
+   - Validasi & tampilan DP
+   - Ringkasan harga step 2
+   - Ringkasan konfirmasi step 3
+   - Payload yang dikirim ke /booking/snap-token
 =====================================================================
 --}}
 
@@ -139,7 +145,7 @@ Perubahan dari versi lama:
                             <div class="invalid-feedback d-none" id="err_packet">
                                 Pilih paket terlebih dahulu.
                             </div>
-                            {{-- ── BARU: badge durasi paket ── --}}
+                            {{-- ── durasi paket ── --}}
                             <small class="text-muted d-none" id="b-duration-hint">
                                 <i class="mdi mdi-clock-outline me-1"></i>
                                 <span id="b-duration-text"></span>
@@ -153,33 +159,33 @@ Perubahan dari versi lama:
                             </label>
 
                             <div class="row g-3">
-{{-- Kalender --}}
-<div class="col-md-6">
-    <div class="bm-calendar">
-        <div class="bm-cal-nav">
-            <button type="button" class="bm-cal-nav-btn" id="b-cal-prev">
-                <i class="mdi mdi-chevron-left"></i>
-            </button>
-            <span class="bm-cal-label" id="b-cal-label">—</span>
-            <button type="button" class="bm-cal-nav-btn" id="b-cal-next">
-                <i class="mdi mdi-chevron-right"></i>
-            </button>
-        </div>
+                                {{-- Kalender --}}
+                                <div class="col-md-6">
+                                    <div class="bm-calendar">
+                                        <div class="bm-cal-nav">
+                                            <button type="button" class="bm-cal-nav-btn" id="b-cal-prev">
+                                                <i class="mdi mdi-chevron-left"></i>
+                                            </button>
+                                            <span class="bm-cal-label" id="b-cal-label">—</span>
+                                            <button type="button" class="bm-cal-nav-btn" id="b-cal-next">
+                                                <i class="mdi mdi-chevron-right"></i>
+                                            </button>
+                                        </div>
 
-        {{-- Header hari --}}
-        <div class="bm-cal-dow-row">
-            @foreach(['Sen','Sel','Rab','Kam','Jum','Sab','Min'] as $d)
-                <div class="bm-cal-dow">{{ $d }}</div>
-            @endforeach
-        </div>
+                                        {{-- Header hari --}}
+                                        <div class="bm-cal-dow-row">
+                                            @foreach(['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'] as $d)
+                                                <div class="bm-cal-dow">{{ $d }}</div>
+                                            @endforeach
+                                        </div>
 
-        {{-- Grid tanggal --}}
-        <div class="bm-cal-grid" id="b-cal-days"></div>
-    </div>
-    <div class="invalid-feedback d-none" id="err_date">
-        Pilih tanggal sesi.
-    </div>
-</div>
+                                        {{-- Grid tanggal --}}
+                                        <div class="bm-cal-grid" id="b-cal-days"></div>
+                                    </div>
+                                    <div class="invalid-feedback d-none" id="err_date">
+                                        Pilih tanggal sesi.
+                                    </div>
+                                </div>
 
                                 {{-- Slot Waktu --}}
                                 <div class="col-md-6">
@@ -202,6 +208,8 @@ Perubahan dari versi lama:
                             </div>
 
                             {{-- Legenda --}}
+
+                            <!-- Legenda Slot -->
                             <div class="bm-legend">
                                 <span class="bm-legend-item">
                                     <span class="bm-legend-dot bm-legend-available"></span>
@@ -222,11 +230,83 @@ Perubahan dari versi lama:
                         </div>
                         {{-- /Jadwal Sesi --}}
 
+                        {{-- ── Tambahan Ekstra (Additional) ── --}}
+                        <div class="col-12">
+                            <label class="bm-label">Tambahan Ekstra (Opsional)</label>
+
+                            <div id="b-extra-additionals-list" class="mb-2"></div>
+
+                            <div class="bm-input-group" style="gap:8px;">
+                                <select id="add_additional_select" class="bm-select">
+                                    <option value="">Pilih tambahan...</option>
+                                    @foreach($all_additionals as $additional)
+                                        <option value="{{ $additional->id }}"
+                                            data-name="{{ $additional->name }}"
+                                            data-price="{{ $additional->price }}">
+                                            {{ $additional->name }} (Rp {{ number_format($additional->price, 0, ',', '.') }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <button type="button" class="bm-btn-secondary" style="white-space:nowrap;" id="add-additional-btn">
+                                    <i class="mdi mdi-plus"></i> Tambah
+                                </button>
+                            </div>
+                        </div>
+                        {{-- /Tambahan Ekstra --}}
+
+                        {{-- ── Metode Pembayaran ── --}}
+                        <div class="col-12">
+                            <label class="bm-label">
+                                Metode Pembayaran <span class="bm-required">*</span>
+                            </label>
+                            <div class="bm-payment-options">
+                                <label class="bm-payment-card selected" id="payment-card-full">
+                                    <input type="radio" name="b_payment_type" id="b_payment_full" value="full" checked
+                                        onchange="bookingTogglePaymentType()">
+                                    <div class="bm-payment-card-inner">
+                                        <i class="mdi mdi-cash-check"></i>
+                                        <div>
+                                            <p class="bm-payment-card-title">Bayar Penuh</p>
+                                            <p class="bm-payment-card-sub">Lunas sekarang</p>
+                                        </div>
+                                    </div>
+                                </label>
+                                <label class="bm-payment-card" id="payment-card-dp">
+                                    <input type="radio" name="b_payment_type" id="b_payment_dp" value="dp"
+                                        onchange="bookingTogglePaymentType()">
+                                    <div class="bm-payment-card-inner">
+                                        <i class="mdi mdi-cash-clock"></i>
+                                        <div>
+                                            <p class="bm-payment-card-title">DP (Uang Muka)</p>
+                                            <p class="bm-payment-card-sub">Min. Rp 50.000</p>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        {{-- ── Input jumlah DP (muncul jika DP dipilih) ── --}}
+                        <div class="col-12 d-none" id="booking-dp-input-wrap">
+                            <label class="bm-label">
+                                Jumlah DP <span class="bm-required">*</span>
+                            </label>
+                            <div class="bm-input-group">
+                                <span class="bm-input-prefix"
+                                    style="color:var(--bm-blue);font-size:14px;font-weight:600;">Rp</span>
+                                <input type="number" class="bm-input bm-input-suffix" id="b_dp_amount" min="50000"
+                                    step="1000" placeholder="Minimal 50.000" oninput="bookingOnDpInput()">
+                            </div>
+                            <div class="invalid-feedback d-none" id="err_dp_amount">
+                                DP minimal Rp 50.000 dan tidak boleh melebihi total harga (paket + tambahan).
+                            </div>
+                            <small class="text-muted d-block mt-1" id="b-dp-remaining-hint"></small>
+                        </div>
                         <div class="col-12 d-none" id="booking-price-summary">
                             <div class="bm-price-summary">
                                 <div>
-                                    <p class="bm-price-label">Total Pembayaran</p>
+                                    <p class="bm-price-label" id="booking-price-label">Total Pembayaran</p>
                                     <p class="bm-price-value" id="booking-price-display">Rp 0</p>
+                                    <p class="bm-price-sub d-none" id="booking-price-sub"></p>
                                 </div>
                                 <i class="mdi mdi-tag-check-outline bm-price-icon"></i>
                             </div>
@@ -271,10 +351,15 @@ Perubahan dari versi lama:
                                     <td class="bm-tbl-label">Paket</td>
                                     <td class="bm-tbl-value" id="confirm_packet">-</td>
                                 </tr>
-                                {{-- ── BARU: tampilkan durasi di ringkasan ── --}}
+                                {{-- ── tampilkan durasi di ringkasan ── --}}
                                 <tr>
                                     <td class="bm-tbl-label">Durasi</td>
                                     <td class="bm-tbl-value" id="confirm_duration">-</td>
+                                </tr>
+                                {{-- ── tampilkan tambahan ekstra di ringkasan ── --}}
+                                <tr id="confirm_additionals_row" class="d-none">
+                                    <td class="bm-tbl-label align-top">Tambahan</td>
+                                    <td class="bm-tbl-value" id="confirm_additionals">-</td>
                                 </tr>
                                 <tr>
                                     <td class="bm-tbl-label">Tanggal</td>
@@ -288,8 +373,20 @@ Perubahan dari versi lama:
                                     <td class="bm-tbl-label">Selesai</td>
                                     <td class="bm-tbl-value" id="confirm_end_time">-</td>
                                 </tr>
+                                <tr>
+                                    <td class="bm-tbl-label">Metode Pembayaran</td>
+                                    <td class="bm-tbl-value" id="confirm_payment_method">-</td>
+                                </tr>
+                                <tr id="confirm_dp_row" class="d-none">
+                                    <td class="bm-tbl-label">DP Dibayar Sekarang</td>
+                                    <td class="bm-tbl-value" id="confirm_dp_amount">-</td>
+                                </tr>
+                                <tr id="confirm_remaining_row" class="d-none">
+                                    <td class="bm-tbl-label">Sisa Pembayaran</td>
+                                    <td class="bm-tbl-value" id="confirm_remaining">-</td>
+                                </tr>
                                 <tr class="bm-tbl-total-row">
-                                    <td class="bm-tbl-total-label pt-2">Total</td>
+                                    <td class="bm-tbl-total-label pt-2" id="confirm_total_label">Total</td>
                                     <td class="bm-tbl-total-value pt-2" id="confirm_total">-</td>
                                 </tr>
                             </tbody>
@@ -676,62 +773,76 @@ Perubahan dari versi lama:
         border-radius: 14px;
         padding: 16px;
     }
-    /* Hapus atau biarkan .bm-cal-dow yang lama, ganti dengan ini: */
 
-.bm-cal-dow-row {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    text-align: center;
-    margin-bottom: 6px;
-}
+    .bm-cal-dow-row {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        text-align: center;
+        margin-bottom: 6px;
+    }
 
-.bm-cal-dow {
-    font-size: 10px;
-    color: var(--bm-slate);
-    font-weight: 600;
-    padding: 2px 0;
-    text-transform: uppercase;
-    letter-spacing: .4px;
-    text-align: center;
-}
+    .bm-cal-dow {
+        font-size: 10px;
+        color: var(--bm-slate);
+        font-weight: 600;
+        padding: 2px 0;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        text-align: center;
+    }
 
-.bm-cal-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
-}
+    .bm-cal-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+    }
 
-.bm-cal-day {
-    text-align: center;
-    padding: 3px 0;
-}
+    .bm-cal-day {
+        text-align: center;
+        padding: 3px 0;
+    }
 
-.bm-cal-circle {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto;
-    font-size: 12px;
-    cursor: pointer;
-    user-select: none;
-    transition: background .15s, color .15s;
-}
+    .bm-cal-circle {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        font-size: 12px;
+        cursor: pointer;
+        user-select: none;
+        transition: background .15s, color .15s;
+    }
 
-.bm-cal-circle:hover:not(.bc-past):not(.bc-empty) {
-    background: rgba(15, 52, 96, .1);
-}
+    .bm-cal-circle:hover:not(.bc-past):not(.bc-empty) {
+        background: rgba(15, 52, 96, .1);
+    }
 
-.bc-empty   { opacity: .25; cursor: default; color: #adb5bd; }
-.bc-past    { opacity: .35; cursor: not-allowed; color: var(--bm-slate); }
-.bc-today   { border: 2px solid var(--bm-blue); color: var(--bm-blue); font-weight: 700; }
-.bc-selected {
-    background: var(--bm-blue) !important;
-    color: #fff !important;
-    font-weight: 700;
-}
+    .bc-empty {
+        opacity: .25;
+        cursor: default;
+        color: #adb5bd;
+    }
+
+    .bc-past {
+        opacity: .35;
+        cursor: not-allowed;
+        color: var(--bm-slate);
+    }
+
+    .bc-today {
+        border: 2px solid var(--bm-blue);
+        color: var(--bm-blue);
+        font-weight: 700;
+    }
+
+    .bc-selected {
+        background: var(--bm-blue) !important;
+        color: #fff !important;
+        font-weight: 700;
+    }
 
     .bm-cal-nav {
         display: flex;
@@ -765,15 +876,6 @@ Perubahan dari versi lama:
     .bm-cal-nav-btn:hover {
         border-color: var(--bm-blue);
         color: var(--bm-blue);
-    }
-
-    .bm-cal-dow {
-        font-size: 10px;
-        color: var(--bm-slate);
-        font-weight: 600;
-        padding: 2px 0;
-        text-transform: uppercase;
-        letter-spacing: .4px;
     }
 
     .b-cal-day-cell:hover {
@@ -926,10 +1028,151 @@ Perubahan dari versi lama:
         line-height: 1.5;
     }
 
+    .bm-payment-options {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .bm-payment-card {
+        position: relative;
+        display: block;
+        cursor: pointer;
+        margin: 0;
+    }
+
+    .bm-payment-card input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .bm-payment-card-inner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px;
+        border: 1.5px solid var(--bm-border);
+        border-radius: 12px;
+        background: var(--bm-white);
+        transition: border-color .2s, background .2s;
+    }
+
+    .bm-payment-card-inner i {
+        font-size: 22px;
+        color: var(--bm-slate);
+        flex-shrink: 0;
+    }
+
+    .bm-payment-card-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--bm-text);
+        margin: 0;
+    }
+
+    .bm-payment-card-sub {
+        font-size: 11px;
+        color: var(--bm-slate);
+        margin: 2px 0 0;
+    }
+
+    .bm-payment-card.selected .bm-payment-card-inner {
+        border-color: var(--bm-blue);
+        background: #f0f4ff;
+    }
+
+    .bm-payment-card.selected .bm-payment-card-inner i,
+    .bm-payment-card.selected .bm-payment-card-title {
+        color: var(--bm-blue);
+    }
+
+    .bm-price-sub {
+        font-size: 11px;
+        color: rgba(238, 238, 238, .8);
+        margin: 4px 0 0;
+    }
+
     .invalid-feedback {
         font-size: 11px;
         color: var(--bm-danger);
         margin-top: 4px;
+    }
+
+    /* ── Tambahan Ekstra (list item yang dipilih) ── */
+    .b-extra-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: var(--bm-surface);
+        border: 1.5px solid var(--bm-border);
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin-bottom: 6px;
+    }
+
+    .b-extra-item-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--bm-text);
+        margin: 0;
+    }
+
+    .b-extra-item-price {
+        font-size: 11px;
+        color: var(--bm-slate);
+        margin: 1px 0 0;
+    }
+
+    .b-extra-item-qty {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .b-qty-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        border: 1.5px solid var(--bm-border);
+        background: var(--bm-white);
+        color: var(--bm-blue);
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .b-qty-btn:hover {
+        border-color: var(--bm-blue);
+        background: #f0f4ff;
+    }
+
+    .b-qty-val {
+        min-width: 18px;
+        text-align: center;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--bm-text);
+    }
+
+    .b-extra-remove {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: var(--bm-danger);
+        font-size: 15px;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .b-extra-remove:hover {
+        background: rgba(220, 53, 69, .1);
     }
 </style>
 
@@ -1054,6 +1297,16 @@ JAVASCRIPT — IIFE UTAMA
                     clearErr(iId, eId);
                     if (!document.getElementById(iId).value) setErr(iId, eId);
                 });
+
+                // ── Validasi DP ──
+                clearErr('b_dp_amount', 'err_dp_amount');
+                if (getPaymentType() === 'dp') {
+                    const dp = getDpAmount();
+                    const total = getTotalPrice();
+                    if (!dp || dp < 50000 || dp > total) {
+                        setErr('b_dp_amount', 'err_dp_amount');
+                    }
+                }
             }
 
             return valid;
@@ -1086,22 +1339,184 @@ JAVASCRIPT — IIFE UTAMA
             bookingUpdatePrice();
         };
 
+        // ── State: additional ekstra yang dipilih ─────────────────────────
+        // Format: { [additional_id]: { id, name, price, qty } }
+        let _selectedAdditionals = {};
+
+        function getAdditionalsTotal() {
+            return Object.values(_selectedAdditionals)
+                .reduce((sum, a) => sum + (a.price * a.qty), 0);
+        }
+
+        function renderAdditionalsList() {
+            const list = document.getElementById('b-extra-additionals-list');
+            list.innerHTML = '';
+
+            Object.values(_selectedAdditionals).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'b-extra-item';
+                div.dataset.id = item.id;
+                div.innerHTML = `
+                    <div>
+                        <p class="b-extra-item-name">${item.name}</p>
+                        <p class="b-extra-item-price">${formatRp(item.price)} / item</p>
+                    </div>
+                    <div class="b-extra-item-qty">
+                        <button type="button" class="b-qty-btn" data-action="dec">−</button>
+                        <span class="b-qty-val">${item.qty}</span>
+                        <button type="button" class="b-qty-btn" data-action="inc">+</button>
+                    </div>
+                    <button type="button" class="b-extra-remove" data-action="remove">
+                        <i class="mdi mdi-close"></i>
+                    </button>
+                `;
+                list.appendChild(div);
+            });
+
+            updatePriceSummaryDisplay();
+        }
+
+        window.bookingAddAdditional = function () {
+            const sel = document.getElementById('add_additional_select');
+            const opt = sel.options[sel.selectedIndex];
+            if (!opt || !opt.value) return;
+
+            const id = opt.value;
+            if (_selectedAdditionals[id]) {
+                _selectedAdditionals[id].qty += 1;
+            } else {
+                _selectedAdditionals[id] = {
+                    id,
+                    name: opt.dataset.name,
+                    price: parseFloat(opt.dataset.price) || 0,
+                    qty: 1,
+                };
+            }
+            sel.value = '';
+            renderAdditionalsList();
+        };
+
+        document.getElementById('add-additional-btn').addEventListener('click', bookingAddAdditional);
+
+        document.getElementById('b-extra-additionals-list').addEventListener('click', function (e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const row = btn.closest('.b-extra-item');
+            const id = row.dataset.id;
+            const action = btn.dataset.action;
+
+            if (action === 'inc') _selectedAdditionals[id].qty += 1;
+            if (action === 'dec') {
+                _selectedAdditionals[id].qty -= 1;
+                if (_selectedAdditionals[id].qty <= 0) delete _selectedAdditionals[id];
+            }
+            if (action === 'remove') delete _selectedAdditionals[id];
+
+            renderAdditionalsList();
+        });
+
+        // ── Helper pembayaran (Full / DP) ─────────────────────────────────
+        // getTotalPrice() = harga paket + total semua tambahan ekstra
+        function getTotalPrice() {
+            const packetSel = document.getElementById('b_packet_id');
+            const packetPrice = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
+            return packetPrice + getAdditionalsTotal();
+        }
+
+        function getPaymentType() {
+            return document.getElementById('b_payment_dp').checked ? 'dp' : 'full';
+        }
+
+        function getDpAmount() {
+            return parseInt(document.getElementById('b_dp_amount').value, 10) || 0;
+        }
+
+        function updatePaymentCardStyles() {
+            const isFull = document.getElementById('b_payment_full').checked;
+            document.getElementById('payment-card-full').classList.toggle('selected', isFull);
+            document.getElementById('payment-card-dp').classList.toggle('selected', !isFull);
+        }
+
+        function updatePriceSummaryDisplay() {
+            const total = getTotalPrice();
+            const summary = document.getElementById('booking-price-summary');
+            const label = document.getElementById('booking-price-label');
+            const display = document.getElementById('booking-price-display');
+            const sub = document.getElementById('booking-price-sub');
+
+            if (total <= 0) {
+                summary.classList.add('d-none');
+                return;
+            }
+            summary.classList.remove('d-none');
+
+            const extrasTotal = getAdditionalsTotal();
+            const extrasNote = extrasTotal > 0 ? `Termasuk tambahan ${formatRp(extrasTotal)}` : '';
+
+            if (getPaymentType() === 'dp') {
+                const dp = getDpAmount();
+                label.textContent = 'DP Dibayar Sekarang';
+                display.textContent = formatRp(dp);
+                sub.textContent = `Total ${formatRp(total)}` + (extrasTotal > 0 ? ` (${extrasNote})` : '') + ` · Sisa ${formatRp(Math.max(total - dp, 0))}`;
+                sub.classList.remove('d-none');
+            } else {
+                label.textContent = 'Total Pembayaran';
+                display.textContent = formatRp(total);
+                if (extrasNote) {
+                    sub.textContent = extrasNote;
+                    sub.classList.remove('d-none');
+                } else {
+                    sub.classList.add('d-none');
+                }
+            }
+        }
+
+        function updateDpRemainingHint() {
+            const total = getTotalPrice();
+            const dp = getDpAmount();
+            const hint = document.getElementById('b-dp-remaining-hint');
+            hint.textContent = (total > 0)
+                ? `Sisa pembayaran: ${formatRp(Math.max(total - dp, 0))}`
+                : '';
+        }
+
+        window.bookingTogglePaymentType = function () {
+            updatePaymentCardStyles();
+            const isDp = getPaymentType() === 'dp';
+            const dpWrap = document.getElementById('booking-dp-input-wrap');
+            dpWrap.classList.toggle('d-none', !isDp);
+
+            if (isDp) {
+                document.getElementById('b_dp_amount').max = getTotalPrice();
+                updateDpRemainingHint();
+            } else {
+                document.getElementById('b_dp_amount').value = '';
+                document.getElementById('b_dp_amount').classList.remove('is-invalid');
+                document.getElementById('err_dp_amount').classList.add('d-none');
+            }
+            updatePriceSummaryDisplay();
+        };
+
+        window.bookingOnDpInput = function () {
+            document.getElementById('b_dp_amount').classList.remove('is-invalid');
+            document.getElementById('err_dp_amount').classList.add('d-none');
+            updateDpRemainingHint();
+            updatePriceSummaryDisplay();
+        };
+
         window.bookingUpdatePrice = function () {
             const packetSel = document.getElementById('b_packet_id');
-            const price = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
             const duration = parseInt(packetSel.options[packetSel.selectedIndex]?.dataset.duration) || 0;
-            const summary = document.getElementById('booking-price-summary');
             const hintEl = document.getElementById('b-duration-hint');
             const hintText = document.getElementById('b-duration-text');
 
-            if (price > 0) {
-                document.getElementById('booking-price-display').textContent = formatRp(price);
-                summary.classList.remove('d-none');
-            } else {
-                summary.classList.add('d-none');
-            }
+            // Reset metode pembayaran ke default tiap ganti paket
+            document.getElementById('b_payment_full').checked = true;
+            document.getElementById('b_dp_amount').value = '';
+            document.getElementById('booking-dp-input-wrap').classList.add('d-none');
+            updatePaymentCardStyles();
+            updatePriceSummaryDisplay();
 
-            // Tampilkan hint durasi di bawah select paket
             if (duration > 0) {
                 hintText.textContent = 'Durasi: ' + formatDuration(duration);
                 hintEl.classList.remove('d-none');
@@ -1109,10 +1524,9 @@ JAVASCRIPT — IIFE UTAMA
                 hintEl.classList.add('d-none');
             }
 
-            // Refresh slot jika tanggal sudah dipilih — karena durasi bisa berubah
             const selectedDate = document.getElementById('b_session_date').value;
             if (selectedDate && packetSel.value) {
-                document.getElementById('b_session_time').value = ''; // reset slot terpilih
+                document.getElementById('b_session_time').value = '';
                 fetchAndRenderSlots(selectedDate);
             }
         };
@@ -1121,9 +1535,10 @@ JAVASCRIPT — IIFE UTAMA
         function fillConfirmation() {
             const productSel = document.getElementById('b_product_id');
             const packetSel = document.getElementById('b_packet_id');
-            const price = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
+            const packetPrice = parseFloat(packetSel.options[packetSel.selectedIndex]?.dataset.price) || 0;
             const duration = parseInt(packetSel.options[packetSel.selectedIndex]?.dataset.duration) || 0;
             const sessionTime = document.getElementById('b_session_time').value;
+            const totalPrice = getTotalPrice(); // paket + tambahan
 
             document.getElementById('confirm_name').textContent = document.getElementById('b_customer_name').value;
             document.getElementById('confirm_phone').textContent = document.getElementById('b_phone_number').value;
@@ -1132,14 +1547,47 @@ JAVASCRIPT — IIFE UTAMA
             document.getElementById('confirm_duration').textContent = duration ? formatDuration(duration) : '-';
             document.getElementById('confirm_date').textContent = formatDate(document.getElementById('b_session_date').value);
             document.getElementById('confirm_time').textContent = sessionTime ? sessionTime + ' WIB' : '-';
-            document.getElementById('confirm_total').textContent = formatRp(price);
 
-            // Hitung jam selesai
             if (sessionTime && duration) {
-                const endTime = addMinutesToTime(sessionTime, duration);
-                document.getElementById('confirm_end_time').textContent = endTime + ' WIB';
+                document.getElementById('confirm_end_time').textContent = addMinutesToTime(sessionTime, duration) + ' WIB';
             } else {
                 document.getElementById('confirm_end_time').textContent = '-';
+            }
+
+            // ── Tambahan ekstra ──
+            const additionalsList = Object.values(_selectedAdditionals);
+            const additionalsRow = document.getElementById('confirm_additionals_row');
+            if (additionalsList.length > 0) {
+                document.getElementById('confirm_additionals').innerHTML = additionalsList
+                    .map(a => `${a.qty}x ${a.name} (${formatRp(a.price * a.qty)})`)
+                    .join('<br>');
+                additionalsRow.classList.remove('d-none');
+            } else {
+                additionalsRow.classList.add('d-none');
+            }
+
+            // ── Metode pembayaran ──
+            const paymentType = getPaymentType();
+            const dpRow = document.getElementById('confirm_dp_row');
+            const remainingRow = document.getElementById('confirm_remaining_row');
+            const totalLabel = document.getElementById('confirm_total_label');
+
+            document.getElementById('confirm_payment_method').textContent =
+                paymentType === 'dp' ? 'DP (Uang Muka)' : 'Bayar Penuh';
+
+            if (paymentType === 'dp') {
+                const dp = getDpAmount();
+                document.getElementById('confirm_dp_amount').textContent = formatRp(dp);
+                document.getElementById('confirm_remaining').textContent = formatRp(Math.max(totalPrice - dp, 0));
+                dpRow.classList.remove('d-none');
+                remainingRow.classList.remove('d-none');
+                totalLabel.textContent = 'Dibayar Sekarang';
+                document.getElementById('confirm_total').textContent = formatRp(dp);
+            } else {
+                dpRow.classList.add('d-none');
+                remainingRow.classList.add('d-none');
+                totalLabel.textContent = 'Total';
+                document.getElementById('confirm_total').textContent = formatRp(totalPrice);
             }
         }
 
@@ -1153,6 +1601,13 @@ JAVASCRIPT — IIFE UTAMA
             actionEl.classList.add('d-none');
             closeBtn.disabled = true;
 
+            // Format additionals sebagai object keyed by id: { [id]: { quantity } }
+            // (harga TIDAK dikirim — server akan mengambil ulang dari DB demi keamanan)
+            const additionalsPayload = {};
+            Object.values(_selectedAdditionals).forEach(a => {
+                additionalsPayload[a.id] = { quantity: a.qty };
+            });
+
             const payload = {
                 customer_name: document.getElementById('b_customer_name').value.trim(),
                 phone_number: document.getElementById('b_phone_number').value.trim(),
@@ -1160,6 +1615,9 @@ JAVASCRIPT — IIFE UTAMA
                 packet_id: document.getElementById('b_packet_id').value,
                 session_date: document.getElementById('b_session_date').value,
                 session_time: document.getElementById('b_session_time').value,
+                payment_option: getPaymentType(),
+                dp_amount: getPaymentType() === 'dp' ? getDpAmount() : null,
+                additionals: additionalsPayload,
             };
 
             try {
@@ -1248,6 +1706,10 @@ JAVASCRIPT — IIFE UTAMA
                 packetSelect.disabled = true;
             }
 
+            // Reset tambahan ekstra
+            _selectedAdditionals = {};
+            document.getElementById('b-extra-additionals-list').innerHTML = '';
+
             document.getElementById('booking-preselect-banner')?.classList.add('d-none');
             document.getElementById('booking-price-summary')?.classList.add('d-none');
             document.getElementById('b-duration-hint')?.classList.add('d-none');
@@ -1255,6 +1717,12 @@ JAVASCRIPT — IIFE UTAMA
             document.getElementById('booking-action-btns')?.classList.remove('d-none');
             document.getElementById('bookingCloseBtn') && (document.getElementById('bookingCloseBtn').disabled = false);
             document.getElementById('booking-inline-error')?.remove();
+            document.getElementById('b_payment_full').checked = true;
+            document.getElementById('b_dp_amount').value = '';
+            document.getElementById('booking-dp-input-wrap')?.classList.add('d-none');
+            document.getElementById('payment-card-full')?.classList.add('selected');
+            document.getElementById('payment-card-dp')?.classList.remove('selected');
+            document.getElementById('booking-price-sub')?.classList.add('d-none');
 
             bookingNextStep(1);
             calReset();
@@ -1303,84 +1771,84 @@ JAVASCRIPT — KALENDER & SLOT WAKTU
         };
 
         function renderCalendar() {
-    const rawLabel = new Date(_calYear, _calMonth, 1)
-        .toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-    document.getElementById('b-cal-label').textContent =
-        rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+            const rawLabel = new Date(_calYear, _calMonth, 1)
+                .toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+            document.getElementById('b-cal-label').textContent =
+                rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
 
-    const grid = document.getElementById('b-cal-days');
-    grid.innerHTML = '';
+            const grid = document.getElementById('b-cal-days');
+            grid.innerHTML = '';
 
-    const firstDay = new Date(_calYear, _calMonth, 1).getDay(); // 0=Min
-    const offset = firstDay === 0 ? 6 : firstDay - 1;           // Sen=0..Min=6
-    const daysInMonth = new Date(_calYear, _calMonth + 1, 0).getDate();
-    const prevDays = new Date(_calYear, _calMonth, 0).getDate();
-    const today = new Date(); today.setHours(0, 0, 0, 0);
+            const firstDay = new Date(_calYear, _calMonth, 1).getDay(); // 0=Min
+            const offset = firstDay === 0 ? 6 : firstDay - 1;           // Sen=0..Min=6
+            const daysInMonth = new Date(_calYear, _calMonth + 1, 0).getDate();
+            const prevDays = new Date(_calYear, _calMonth, 0).getDate();
+            const today = new Date(); today.setHours(0, 0, 0, 0);
 
-    // Sel kosong bulan sebelumnya
-    for (let i = 0; i < offset; i++) {
-        grid.appendChild(makeEmptyCell(prevDays - offset + 1 + i));
-    }
+            // Sel kosong bulan sebelumnya
+            for (let i = 0; i < offset; i++) {
+                grid.appendChild(makeEmptyCell(prevDays - offset + 1 + i));
+            }
 
-    // Hari-hari bulan ini
-    for (let d = 1; d <= daysInMonth; d++) {
-        const cellDate = new Date(_calYear, _calMonth, d);
-        const dateStr = toDateStr(_calYear, _calMonth, d);
-        const isPast = cellDate < today;
-        const isSel = dateStr === _calSelectedDate;
-        const isToday = cellDate.toDateString() === today.toDateString();
+            // Hari-hari bulan ini
+            for (let d = 1; d <= daysInMonth; d++) {
+                const cellDate = new Date(_calYear, _calMonth, d);
+                const dateStr = toDateStr(_calYear, _calMonth, d);
+                const isPast = cellDate < today;
+                const isSel = dateStr === _calSelectedDate;
+                const isToday = cellDate.toDateString() === today.toDateString();
 
-        let circleStyle = 'width:30px;height:30px;font-size:12px;display:flex;' +
-            'align-items:center;justify-content:center;border-radius:50%;margin:auto;';
+                let circleStyle = 'width:30px;height:30px;font-size:12px;display:flex;' +
+                    'align-items:center;justify-content:center;border-radius:50%;margin:auto;';
 
-        if (isPast)       circleStyle += 'opacity:.3;color:#6c757d;cursor:not-allowed;';
-        else if (isSel)   circleStyle += 'background:#0f3460;color:#fff;font-weight:600;cursor:pointer;';
-        else if (isToday) circleStyle += 'border:2px solid #0f3460;color:#0f3460;font-weight:600;cursor:pointer;';
-        else              circleStyle += 'color:#1A1A2E;cursor:pointer;';
+                if (isPast) circleStyle += 'opacity:.3;color:#6c757d;cursor:not-allowed;';
+                else if (isSel) circleStyle += 'background:#0f3460;color:#fff;font-weight:600;cursor:pointer;';
+                else if (isToday) circleStyle += 'border:2px solid #0f3460;color:#0f3460;font-weight:600;cursor:pointer;';
+                else circleStyle += 'color:#1A1A2E;cursor:pointer;';
 
-        const col = document.createElement('div');
-        col.className = 'col text-center py-1';
+                const col = document.createElement('div');
+                col.className = 'col text-center py-1';
 
-        const circle = document.createElement('div');
-        circle.style.cssText = circleStyle;
-        circle.textContent = d;
-        if (!isPast) circle.classList.add('b-cal-day-cell');
+                const circle = document.createElement('div');
+                circle.style.cssText = circleStyle;
+                circle.textContent = d;
+                if (!isPast) circle.classList.add('b-cal-day-cell');
 
-        if (!isPast) {
-            circle.onclick = () => {
-                _calSelectedDate = dateStr;
-                _selectedSlot = null;
-                document.getElementById('b_session_date').value = dateStr;
-                document.getElementById('b_session_time').value = '';
-                document.getElementById('b_session_date').classList.remove('is-invalid');
-                document.getElementById('err_date').classList.add('d-none');
-                renderCalendar();
-                fetchAndRenderSlots(dateStr);
-            };
+                if (!isPast) {
+                    circle.onclick = () => {
+                        _calSelectedDate = dateStr;
+                        _selectedSlot = null;
+                        document.getElementById('b_session_date').value = dateStr;
+                        document.getElementById('b_session_time').value = '';
+                        document.getElementById('b_session_date').classList.remove('is-invalid');
+                        document.getElementById('err_date').classList.add('d-none');
+                        renderCalendar();
+                        fetchAndRenderSlots(dateStr);
+                    };
+                }
+
+                col.appendChild(circle);
+                grid.appendChild(col);
+            }
+
+            // Sel kosong bulan berikutnya — lengkapi hingga kelipatan 7
+            const totalCells = offset + daysInMonth;
+            const trailing = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+            for (let i = 1; i <= trailing; i++) {
+                grid.appendChild(makeEmptyCell(i));
+            }
         }
 
-        col.appendChild(circle);
-        grid.appendChild(col);
-    }
-
-    // Sel kosong bulan berikutnya — lengkapi hingga kelipatan 7
-    const totalCells = offset + daysInMonth;
-    const trailing = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-    for (let i = 1; i <= trailing; i++) {
-        grid.appendChild(makeEmptyCell(i));
-    }
-}
-
-function makeEmptyCell(num) {
-    const c = document.createElement('div');
-    c.className = 'col text-center py-1';
-    c.innerHTML = `<div style="width:30px;height:30px;font-size:12px;display:flex;
+        function makeEmptyCell(num) {
+            const c = document.createElement('div');
+            c.className = 'col text-center py-1';
+            c.innerHTML = `<div style="width:30px;height:30px;font-size:12px;display:flex;
         align-items:center;justify-content:center;
         border-radius:50%;margin:auto;color:#ccc;cursor:default;">${num}</div>`;
-    return c;
-}
+            return c;
+        }
 
-        
+
 
         function toDateStr(y, m, d) {
             return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;

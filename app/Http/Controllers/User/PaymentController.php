@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\User;
+
 use App\Http\Controllers\Controller;
 use App\Models\Transaksi;
 use App\Models\Expense;
@@ -19,9 +20,16 @@ class PaymentController extends Controller
     // PENTING: Tambahkan 'payment/webhook' ke VerifyCsrfToken@$except
     //
     // Alur status transaksi:
-    //   'pending'      → dibuat di BookingController, slot sudah terkunci
-    //   'cancelled'    → gagal/expired dari Midtrans, slot KEMBALI tersedia
-    //   'sudah dibayar'→ pembayaran berhasil, slot tetap terkunci
+    //   'belum dibayar' → dibuat di BookingController, slot sudah terkunci
+    //   'gagal'         → gagal/expired dari Midtrans, slot KEMBALI tersedia
+    //   'dp'            → dibayar sebagian (nominal < total_price)
+    //   'sudah dibayar' → dibayar lunas (nominal >= total_price)
+    //
+    // Status ('dp' vs 'sudah dibayar') ditentukan dengan MEMBANDINGKAN
+    // nominal yang benar-benar disettle Midtrans (gross_amount notifikasi)
+    // terhadap total_price transaksi — bukan dari flag terpisah.
+    // Ini membuat perilaku konsisten dengan alur input manual admin
+    // di TransaksiController.
     // ═══════════════════════════════════════════════════════════════════
     public function handleWebhook(Request $request): JsonResponse
     {
@@ -35,8 +43,9 @@ class PaymentController extends Controller
             $txStatus    = $notification->transaction_status;
             $paymentType = $notification->payment_type;
             $fraudStatus = $notification->fraud_status ?? null;
+            $grossAmount = (float) $notification->gross_amount;
 
-            Log::info("Midtrans Webhook: {$orderId} - {$txStatus}");
+            Log::info("Midtrans Webhook: {$orderId} - {$txStatus} - Rp{$grossAmount}");
 
             // Cari transaksi berdasarkan order_id yang dikirim Midtrans
             $transaksi = Transaksi::where('order_id', $orderId)->first();
@@ -46,22 +55,23 @@ class PaymentController extends Controller
                 return response()->json(['message' => 'Transaction not found.'], 404);
             }
 
-            // Idempoten: jika sudah dibayar, abaikan notifikasi ulang dari Midtrans
-            // Midtrans kadang mengirim webhook lebih dari satu kali untuk order yang sama
-            if ($transaksi->status === 'sudah dibayar') {
+            // ── Idempoten ──────────────────────────────────────────────
+            // Jika transaksi sudah berstatus 'dp' ATAU 'sudah dibayar',
+            // abaikan notifikasi ulang dari Midtrans (Midtrans kadang
+            // mengirim webhook lebih dari satu kali untuk order yang sama).
+            if (in_array($transaksi->status, ['sudah dibayar', 'dp'])) {
                 return response()->json(['message' => 'Already processed.']);
             }
 
-            // ── Status PENDING dari Midtrans ──────────────────────────────
+            // ── Status PENDING dari Midtrans ──────────────────────────
             // Artinya: user membuka halaman bayar tapi belum menyelesaikan pembayaran.
-            // Transaksi sudah berstatus 'pending' sejak dibuat di BookingController,
+            // Transaksi sudah berstatus 'belum dibayar' sejak dibuat di BookingController,
             // jadi tidak perlu update DB — slot tetap terkunci, cukup acknowledge ke Midtrans.
             if ($txStatus === 'pending') {
                 return response()->json(['message' => 'Payment pending.']);
             }
 
             // ── Status GAGAL / EXPIRED dari Midtrans ─────────────────────
-            
             if (in_array($txStatus, ['cancel', 'deny', 'expire'])) {
                 $transaksi->status = 'gagal';
                 $transaksi->save();
@@ -86,18 +96,35 @@ class PaymentController extends Controller
             // ── Pembayaran BERHASIL ───────────────────────────────────────
             // Jalankan dalam DB transaction agar update status & pencatatan
             // income terjadi secara atomik — keduanya berhasil atau keduanya batal.
-            DB::transaction(function () use ($transaksi, $paymentType) {
-                $transaksi->status         = 'sudah dibayar';
+            DB::transaction(function () use ($transaksi, $paymentType, $grossAmount) {
+
+                // ── Tentukan status berdasarkan NOMINAL yang benar-benar dibayar ──
+                if ($grossAmount >= (float) $transaksi->total_price) {
+                    // Dibayar penuh — baik dari Full Payment langsung,
+                    // atau dari pelunasan sisa DP (order_id berbeda, transaksi sama).
+                    $transaksi->status = 'sudah dibayar';
+                    // dp_amount SENGAJA TIDAK diubah/di-null-kan di sini,
+                    // agar riwayat "DP Awal → Pelunasan" tetap tampil di invoice
+                    // (lihat blade: @if($transaksi->dp_amount > 0) di status 'sudah dibayar').
+                } else {
+                    // Dibayar sebagian → DP
+                    $transaksi->status    = 'dp';
+                    $transaksi->dp_amount = $grossAmount;
+                }
+
                 $transaksi->payment_type   = $this->mapPaymentType($paymentType);
                 $transaksi->process_status = 'Pelanggan Belum Foto';
-
-                
-                // Men-generate ulang akan memutus referensi ke Midtrans order_id.
-
                 $transaksi->save();
 
-                // Catat pemasukan ke tabel expenses / log keuangan
-                $this->recordIncome($transaksi);
+                // ── Catat/hapus income — IKUTI PERSIS pola TransaksiController ──
+                // Income HANYA dicatat saat status 'sudah dibayar' (lunas penuh).
+                // Saat status 'dp', TIDAK dicatat ke Expense/Balance — nominal DP
+                // cukup terlihat lewat kolom dp_amount & card "DP (Uang Muka)".
+                if ($transaksi->status === 'sudah dibayar') {
+                    $this->recordIncome($transaksi);
+                } else {
+                    $this->deleteIncome($transaksi);
+                }
             });
 
             return response()->json(['message' => 'OK']);
@@ -136,10 +163,14 @@ class PaymentController extends Controller
             'order_id'      => $transaksi->order_id,
             'customer_name' => $transaksi->customer_name,
             'phone_number'  => $transaksi->phone_number,
-            'session_date'  => $transaksi->session_date,  
-            'session_time'  => $transaksi->session_time,  
+            'session_date'  => $transaksi->session_date,
+            'session_time'  => $transaksi->session_time,
             'total_price'   => $transaksi->total_price,
             'status'        => $transaksi->status,
+            'dp_amount'     => $transaksi->dp_amount,
+            'remaining'     => $transaksi->status === 'dp'
+                                ? $transaksi->total_price - $transaksi->dp_amount
+                                : 0,
             'payment_type'  => $transaksi->payment_type,
             'receipt_code'  => $transaksi->receipt_code,
             'packet'        => $transaksi->packet,
@@ -155,7 +186,9 @@ class PaymentController extends Controller
 
     // ═══════════════════════════════════════════════════════════════════
     // HELPER — Catat pemasukan ke tabel expenses
-    // Dipanggil hanya saat pembayaran berhasil (settlement/capture).
+    // Dipanggil HANYA saat status transaksi 'sudah dibayar' (lunas penuh).
+    // Disamakan persis dengan TransaksiController@recordIncome agar
+    // pembukuan konsisten baik dari alur web maupun input manual admin.
     // Menggunakan receipt_code sebagai nama unik agar tidak duplikat.
     // ═══════════════════════════════════════════════════════════════════
     private function recordIncome(Transaksi $transaksi): void
@@ -205,6 +238,23 @@ class PaymentController extends Controller
                 $balance->amount += $transaksi->total_price;
                 $balance->save();
             }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // HELPER — Hapus pencatatan pemasukan
+    // Dipanggil saat status BUKAN 'sudah dibayar' (misal 'dp', 'gagal',
+    // atau 'belum dibayar'). Disamakan persis dengan
+    // TransaksiController@deleteIncome.
+    // ═══════════════════════════════════════════════════════════════════
+    private function deleteIncome(Transaksi $transaksi): void
+    {
+        $expense = Expense::where('name', $transaksi->receipt_code)
+               ->where('type', 'income')
+               ->first();
+
+        if ($expense) {
+            $expense->delete();
         }
     }
 

@@ -15,10 +15,11 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\Additional;
 
 class BookingController extends Controller
 {
-   
+
     private function generateAllSlots(): array
     {
         $slots = [];
@@ -30,6 +31,7 @@ class BookingController extends Controller
         }
         return $slots; // 17 slot: 10:00 s.d. 18:00
     }
+
     private function getOccupiedSlots(string $startTime, int $durationMinutes): array
     {
         $slots    = [];
@@ -72,144 +74,213 @@ class BookingController extends Controller
         return $booked;
     }
 
-    // ═══════════════════════════════════════════════════════════════════
     // CREATE SNAP TOKEN
-    // Validasi → cek konflik slot range → simpan transaksi → Snap Token
-    // ═══════════════════════════════════════════════════════════════════
-    public function createSnapToken(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'customer_name' => 'required|string|max:50',
-            'phone_number'  => 'required|string|max:20',
-            'product_id'    => 'required|exists:products,id',
-            'packet_id'     => 'required|exists:packets,id',
-            'session_date'  => 'required|date|after_or_equal:today',
-            'session_time'  => 'required|string',
-        ]);
+public function createSnapToken(Request $request): JsonResponse
+{
+    $validator = Validator::make($request->all(), [
+        'customer_name'  => 'required|string|max:50',
+        'phone_number'   => 'required|string|max:20',
+        'product_id'     => 'required|exists:products,id',
+        'packet_id'      => 'required|exists:packets,id',
+        'session_date'   => 'required|date|after_or_equal:today',
+        'session_time'   => 'required|string',
+        'payment_option' => 'required|in:full,dp',
+        'dp_amount'      => 'required_if:payment_option,dp|nullable|numeric|min:50000',
+        'additionals'                 => 'nullable|array',
+        'additionals.*.quantity'      => 'required_with:additionals|integer|min:1',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Data tidak valid.',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Data tidak valid.',
+            'errors'  => $validator->errors(),
+        ], 422);
+    }
 
-        $validated = $validator->validated();
-        $packet    = Packet::with('product')->findOrFail($validated['packet_id']);
+    $validated = $validator->validated();
+    $packet    = Packet::with('product')->findOrFail($validated['packet_id']);
 
-        if ($packet->product_id != $validated['product_id']) {
-            return response()->json(['message' => 'Paket tidak sesuai dengan produk.'], 422);
-        }
+    if ($packet->product_id != $validated['product_id']) {
+        return response()->json(['message' => 'Paket tidak sesuai dengan produk.'], 422);
+    }
 
-        // ── Cek konflik slot berdasarkan RANGE DURASI ─────────────────
-        // Ambil semua slot yang akan dipakai booking baru ini
-        $slotsNeeded  = $this->getOccupiedSlots($validated['session_time'], $packet->duration_minutes);
-        $bookedCounts = $this->getBookedCountPerSlot($validated['session_date']);
+    // ── Ambil & validasi additional dari DB (bukan dari input) ─────
+    $additionalsInput = $validated['additionals'] ?? [];
+    $additionalIds     = array_keys($additionalsInput);
+    $additionalModels  = Additional::whereIn('id', $additionalIds)->get()->keyBy('id');
 
-        $conflictSlots = [];
-        foreach ($slotsNeeded as $slot) {
-            if (($bookedCounts[$slot] ?? 0) >= 2) {
-                $conflictSlots[] = $slot;
-            }
-        }
+    if (count($additionalIds) !== $additionalModels->count()) {
+        return response()->json(['message' => 'Salah satu item tambahan tidak ditemukan.'], 422);
+    }
 
-        // Juga pastikan semua slot dalam range tidak melewati batas jam operasional (18:00)
-        $allSlots = $this->generateAllSlots();
-        foreach ($slotsNeeded as $slot) {
-            if (!in_array($slot, $allSlots)) {
-                return response()->json([
-                    'message' => 'Paket dengan durasi ' . $packet->duration_minutes . ' menit tidak muat jika dimulai pukul '
-                                 . $validated['session_time'] . '. Silakan pilih waktu lebih awal.',
-                    'errors'  => ['session_time' => ['Slot melewati jam operasional (maks 18:00).']],
-                ], 422);
-            }
-        }
+    $additionalsTotal = 0;
+    foreach ($additionalsInput as $id => $details) {
+        $additionalsTotal += $additionalModels[$id]->price * $details['quantity'];
+    }
 
-        if (!empty($conflictSlots)) {
-            return response()->json([
-                'message' => 'Slot ' . implode(', ', $conflictSlots) . ' pada tanggal '
-                             . $validated['session_date'] . ' sudah penuh. Silakan pilih waktu lain.',
-                'errors'  => ['session_time' => ['Slot sudah penuh.']],
-            ], 422);
-        }
-        // ─────────────────────────────────────────────────────────────
+    // ── Validasi skema pembayaran ──────────────────────────────────
+    $paymentOption = $validated['payment_option'];
+    $dpAmountInput = $paymentOption === 'dp' ? (float) $validated['dp_amount'] : null;
+    $grandTotal    = (float) $packet->price + $additionalsTotal;
 
-        DB::beginTransaction();
-        try {
-            $user = User::firstOrCreate(
-                ['username' => $validated['phone_number']],
-                [
-                    'name'     => $validated['customer_name'],
-                    'password' => Hash::make($validated['phone_number']),
-                    'role_id'  => Role::where('name', 'User')->first()->id ?? 3,
-                ]
-            );
+    if ($paymentOption === 'dp' && $dpAmountInput > $grandTotal) {
+        return response()->json([
+            'message' => 'Jumlah DP tidak boleh melebihi total harga (paket + tambahan).',
+            'errors'  => ['dp_amount' => ['DP melebihi total harga.']],
+        ], 422);
+    }
 
-            $transaksi = Transaksi::create([
-                'user_id'        => $user->id,
-                'customer_name'  => $validated['customer_name'],
-                'phone_number'   => $validated['phone_number'],
-                'packet_id'      => $validated['packet_id'],
-                'session_date'   => $validated['session_date'],
-                'session_time'   => $validated['session_time'],
-                'total_price'    => $packet->price,
-                'discount'       => 0,
-                'status'         => 'belum dibayar',
-                'payment_type'   => 'none',
-                'dp_amount'      => null,
-                'process_status' => 'Pelanggan Belum Foto',
-                'note'           => 'Booking online — ' . $validated['session_date'] . ' ' . $validated['session_time'],
-                'receipt_code'   => 'TEMP-' . uniqid(),
-            ]);
+    $grossAmount = $paymentOption === 'dp' ? (int) $dpAmountInput : (int) $grandTotal;
+    // ─────────────────────────────────────────────────────────────
 
-            $receiptCode = 'INV/' . Carbon::now()->format('Ymd') . '/' . $transaksi->transaction_id;
-            $transaksi->receipt_code = $receiptCode;
-            $transaksi->order_id     = $receiptCode;
-            $transaksi->save();
+    // ── Cek konflik slot berdasarkan RANGE DURASI ─────────────────
+    $slotsNeeded  = $this->getOccupiedSlots($validated['session_time'], $packet->duration_minutes);
+    $bookedCounts = $this->getBookedCountPerSlot($validated['session_date']);
 
-            DB::commit();
-
-            \Midtrans\Config::$serverKey    = config('midtrans.server_key');
-            \Midtrans\Config::$isProduction = config('midtrans.is_production');
-            \Midtrans\Config::$isSanitized  = true;
-            \Midtrans\Config::$is3ds        = true;
-
-            $snapToken = \Midtrans\Snap::getSnapToken([
-                'transaction_details' => [
-                    'order_id'     => $receiptCode,
-                    'gross_amount' => (int) $packet->price,
-                ],
-                'customer_details' => [
-                    'first_name' => $validated['customer_name'],
-                    'phone'      => $validated['phone_number'],
-                ],
-                'item_details' => [
-                    [
-                        'id'       => $packet->id,
-                        'price'    => (int) $packet->price,
-                        'quantity' => 1,
-                        'name'     => $packet->product->name . ' - ' . $packet->name,
-                    ]
-                ],
-                'expiry' => [
-                    'unit'     => 'minutes',
-                    'duration' => 1,
-                ],
-            ]);
-
-            return response()->json([
-                'snap_token' => $snapToken,
-                'order_id'   => $receiptCode,
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Booking Error: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Gagal memproses: ' . $e->getMessage()
-            ], 500);
+    $conflictSlots = [];
+    foreach ($slotsNeeded as $slot) {
+        if (($bookedCounts[$slot] ?? 0) >= 2) {
+            $conflictSlots[] = $slot;
         }
     }
+
+    $allSlots = $this->generateAllSlots();
+    foreach ($slotsNeeded as $slot) {
+        if (!in_array($slot, $allSlots)) {
+            return response()->json([
+                'message' => 'Paket dengan durasi '  . $packet->duration_minutes . ' menit tidak muat jika dimulai pukul '
+                             . $validated['session_time'] . '. Silakan pilih waktu lebih awal.',
+                'errors'  => ['session_time' => ['Slot melewati jam operasional (maks 18:00).']],
+            ], 422);
+        }
+    }
+
+    if (!empty($conflictSlots)) {
+        return response()->json([
+            'message' => 'Slot ' . implode(', ', $conflictSlots) . ' pada tanggal '
+                         . $validated['session_date'] . ' sudah penuh. Silakan pilih waktu lain.',
+            'errors'  => ['session_time' => ['Slot sudah penuh.']],
+        ], 422);
+    }
+    // ─────────────────────────────────────────────────────────────
+
+    DB::beginTransaction();
+    try {
+        $user = User::firstOrCreate(
+            ['username' => $validated['phone_number']],
+            [
+                'name'     => $validated['customer_name'],
+                'password' => Hash::make($validated['phone_number']),
+                'role_id'  => Role::where('name', 'User')->first()->id ?? 3,
+            ]
+        );
+
+        $transaksi = Transaksi::create([
+            'user_id'        => $user->id,
+            'customer_name'  => $validated['customer_name'],
+            'phone_number'   => $validated['phone_number'],
+            'packet_id'      => $validated['packet_id'],
+            'session_date'   => $validated['session_date'],
+            'session_time'   => $validated['session_time'],
+            'total_price'    => $grandTotal, // paket + tambahan
+            'discount'       => 0,
+            'status'         => 'belum dibayar',
+            'payment_type'   => 'none',
+            'dp_amount'      => null,
+            'process_status' => 'Pelanggan Belum Foto',
+            'note'           => 'Booking online — ' . $validated['session_date'] . ' ' . $validated['session_time']
+                                 . ($paymentOption === 'dp'
+                                     ? ' (Rencana DP: Rp ' . number_format($dpAmountInput, 0, ',', '.') . ')'
+                                     : ' (Rencana Bayar Penuh)'),
+            'receipt_code'   => 'TEMP-' . uniqid(),
+        ]);
+
+        $receiptCode = 'INV-' . Carbon::now()->format('Ymd') . '-' . $transaksi->transaction_id;
+        $transaksi->receipt_code = $receiptCode;
+        $transaksi->order_id     = $receiptCode;
+        $transaksi->save();
+
+        // ── Sync additional ke pivot, harga diambil dari DB ─────────
+        if (!empty($additionalsInput)) {
+            $syncData = [];
+            foreach ($additionalsInput as $id => $details) {
+                $syncData[$id] = [
+                    'quantity' => $details['quantity'],
+                    'price'    => $additionalModels[$id]->price,
+                ];
+            }
+            $transaksi->additionals()->sync($syncData);
+        }
+
+        DB::commit();
+
+        \Midtrans\Config::$serverKey    = config('midtrans.server_key');
+        \Midtrans\Config::$isProduction = config('midtrans.is_production');
+        \Midtrans\Config::$isSanitized  = true;
+        \Midtrans\Config::$is3ds        = true;
+
+        $itemName = $packet->product->name . ' - ' . $packet->name;
+        if ($paymentOption === 'dp') {
+            $itemName .= ' (DP)';
+        }
+
+        // ── Item details Midtrans ──
+        $itemDetails = [
+            [
+                'id'       => $packet->id,
+                'price'    => (int) $packet->price,
+                'quantity' => 1,
+                'name'     => $itemName,
+            ],
+        ];
+        foreach ($additionalsInput as $id => $details) {
+            $model = $additionalModels[$id];
+            $itemDetails[] = [
+                'id'       => 'add-' . $model->id,
+                'price'    => (int) $model->price,
+                'quantity' => (int) $details['quantity'],
+                'name'     => $model->name,
+            ];
+        }
+
+        $snapItemDetails = $paymentOption === 'full'
+            ? $itemDetails
+            : [[
+                'id'       => $packet->id,
+                'price'    => $grossAmount,
+                'quantity' => 1,
+                'name'     => $itemName . ' (DP)',
+            ]];
+
+        $snapToken = \Midtrans\Snap::getSnapToken([
+            'transaction_details' => [
+                'order_id'     => $receiptCode,
+                'gross_amount' => $grossAmount,
+            ],
+            'customer_details' => [
+                'first_name' => $validated['customer_name'],
+                'phone'      => $validated['phone_number'],
+            ],
+            'item_details' => $snapItemDetails,
+            'expiry' => [
+                'unit'     => 'minutes',
+                'duration' => 1,
+            ],
+        ]);
+
+        return response()->json([
+            'snap_token' => $snapToken,
+            'order_id'   => $receiptCode,
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Booking Error: ' . $e->getMessage());
+        return response()->json([
+            'message' => 'Gagal memproses: ' . $e->getMessage()
+        ], 500);
+    }
+}
 
     public function availableSlots(Request $request): JsonResponse
     {
@@ -259,7 +330,7 @@ class BookingController extends Controller
 
             $slots[] = [
                 'time'      => $time,
-                'booked'    => $maxBookedInRange,   
+                'booked'    => $maxBookedInRange,
                 'max'       => 2,
                 'available' => $rangeAvailable,
             ];
