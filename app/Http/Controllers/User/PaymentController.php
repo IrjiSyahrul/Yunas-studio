@@ -15,39 +15,46 @@ use Illuminate\Support\Facades\Log;
 class PaymentController extends Controller
 {
     // ═══════════════════════════════════════════════════════════════════
-    // WEBHOOK — Dipanggil otomatis Midtrans setelah pembayaran selesai
-    // Ini satu-satunya tempat status transaksi diupdate dari Midtrans
+    // WEBHOOK — Dipanggil otomatis Xendit setelah status invoice berubah
+    // Ini satu-satunya tempat status transaksi diupdate dari Xendit
     // PENTING: Tambahkan 'payment/webhook' ke VerifyCsrfToken@$except
     //
     // Alur status transaksi:
     //   'belum dibayar' → dibuat di BookingController, slot sudah terkunci
-    //   'gagal'         → gagal/expired dari Midtrans, slot KEMBALI tersedia
+    //   'gagal'         → gagal/expired dari Xendit, ATAU auto-expired oleh
+    //                      scheduled command (transaksi:expire-stale) karena
+    //                      tidak dibayar dalam batas waktu, slot KEMBALI tersedia
     //   'dp'            → dibayar sebagian (nominal < total_price)
     //   'sudah dibayar' → dibayar lunas (nominal >= total_price)
+    //   'perlu_review'  → pembayaran diterima TAPI transaksi sudah lebih dulu
+    //                      di-auto-expire dan slotnya sudah diambil transaksi
+    //                      lain. Butuh keputusan manual admin (refund/reschedule).
     //
     // Status ('dp' vs 'sudah dibayar') ditentukan dengan MEMBANDINGKAN
-    // nominal yang benar-benar disettle Midtrans (gross_amount notifikasi)
+    // nominal yang benar-benar disettle Xendit (paid_amount notifikasi)
     // terhadap total_price transaksi — bukan dari flag terpisah.
     // Ini membuat perilaku konsisten dengan alur input manual admin
     // di TransaksiController.
     // ═══════════════════════════════════════════════════════════════════
     public function handleWebhook(Request $request): JsonResponse
     {
-        \Midtrans\Config::$serverKey    = config('midtrans.server_key');
-        \Midtrans\Config::$isProduction = config('midtrans.is_production');
+        // ── Verifikasi callback token 
+        $callbackToken = $request->header('x-callback-token');
+        if ($callbackToken !== config('xendit.callback_token')) {
+            Log::warning('Xendit Webhook: Invalid callback token');
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
 
         try {
-            $notification = new \Midtrans\Notification();
+            $payload = $request->all();
 
-            $orderId     = $notification->order_id;
-            $txStatus    = $notification->transaction_status;
-            $paymentType = $notification->payment_type;
-            $fraudStatus = $notification->fraud_status ?? null;
-            $grossAmount = (float) $notification->gross_amount;
+            $orderId       = $payload['external_id'] ?? null;   // setara order_id
+            $status        = $payload['status'] ?? null;        // PAID, EXPIRED, PENDING, dll
+            $paymentMethod = $payload['payment_method'] ?? ($payload['payment_channel'] ?? 'unknown');
+            $paidAmount    = (float) ($payload['paid_amount'] ?? $payload['amount'] ?? 0);
 
-            Log::info("Midtrans Webhook: {$orderId} - {$txStatus} - Rp{$grossAmount}");
+            Log::info("Xendit Webhook: {$orderId} - {$status} - Rp{$paidAmount}");
 
-            // Cari transaksi berdasarkan order_id yang dikirim Midtrans
             $transaksi = Transaksi::where('order_id', $orderId)->first();
 
             if (!$transaksi) {
@@ -55,71 +62,82 @@ class PaymentController extends Controller
                 return response()->json(['message' => 'Transaction not found.'], 404);
             }
 
-            // ── Idempoten ──────────────────────────────────────────────
-            // Jika transaksi sudah berstatus 'dp' ATAU 'sudah dibayar',
-            // abaikan notifikasi ulang dari Midtrans (Midtrans kadang
-            // mengirim webhook lebih dari satu kali untuk order yang sama).
-            if (in_array($transaksi->status, ['sudah dibayar', 'dp'])) {
+            // ── Idempoten ──
+            if (in_array($transaksi->status, ['sudah dibayar', 'dp', 'perlu_review'])) {
                 return response()->json(['message' => 'Already processed.']);
             }
 
-            // ── Status PENDING dari Midtrans ──────────────────────────
-            // Artinya: user membuka halaman bayar tapi belum menyelesaikan pembayaran.
-            // Transaksi sudah berstatus 'belum dibayar' sejak dibuat di BookingController,
-            // jadi tidak perlu update DB — slot tetap terkunci, cukup acknowledge ke Midtrans.
-            if ($txStatus === 'pending') {
+            // ── Status PENDING ── Xendit invoice baru dibuat = PENDING
+            if ($status === 'PENDING') {
                 return response()->json(['message' => 'Payment pending.']);
             }
 
-            // ── Status GAGAL / EXPIRED dari Midtrans ─────────────────────
-            if (in_array($txStatus, ['cancel', 'deny', 'expire'])) {
-                $transaksi->status = 'gagal';
-                $transaksi->save();
-
-                Log::info("Transaksi {$orderId} dibatalkan — slot dikembalikan.");
+            // ── Status GAGAL / EXPIRED ──
+            if (in_array($status, ['EXPIRED'])) {
+                // Idempoten juga di sini — kalau sudah 'gagal' (mis. sudah
+                // di-auto-expire duluan oleh scheduled command), tidak perlu
+                // diproses ulang.
+                if ($transaksi->status !== 'gagal') {
+                    $transaksi->status = 'gagal';
+                    $transaksi->save();
+                    Log::info("Transaksi {$orderId} dibatalkan — slot dikembalikan.");
+                }
                 return response()->json(['message' => 'Payment cancelled.']);
             }
 
-            // ── Cek Keberhasilan Bayar (Settlement / Capture Accept) ──────
-            // 'settlement' → transfer bank / e-wallet sudah settle
-            // 'capture' + fraud 'accept' → kartu kredit berhasil & aman
-            $isPaid = match (true) {
-                $txStatus === 'settlement'                            => true,
-                $txStatus === 'capture' && $fraudStatus === 'accept' => true,
-                default                                               => false,
-            };
-
-            if (!$isPaid) {
+            // ── Cek keberhasilan bayar ──
+            if ($status !== 'PAID' && $status !== 'SETTLED') {
                 return response()->json(['message' => 'Not paid.']);
             }
 
-            // ── Pembayaran BERHASIL ───────────────────────────────────────
-            // Jalankan dalam DB transaction agar update status & pencatatan
-            // income terjadi secara atomik — keduanya berhasil atau keduanya batal.
-            DB::transaction(function () use ($transaksi, $paymentType, $grossAmount) {
+            // ── Pembayaran BERHASIL ──
+            DB::transaction(function () use ($transaksi, $paymentMethod, $paidAmount, $orderId) {
 
-                // ── Tentukan status berdasarkan NOMINAL yang benar-benar dibayar ──
-                if ($grossAmount >= (float) $transaksi->total_price) {
-                    // Dibayar penuh — baik dari Full Payment langsung,
-                    // atau dari pelunasan sisa DP (order_id berbeda, transaksi sama).
-                    $transaksi->status = 'sudah dibayar';
-                    // dp_amount SENGAJA TIDAK diubah/di-null-kan di sini,
-                    // agar riwayat "DP Awal → Pelunasan" tetap tampil di invoice
-                    // (lihat blade: @if($transaksi->dp_amount > 0) di status 'sudah dibayar').
-                } else {
-                    // Dibayar sebagian → DP
-                    $transaksi->status    = 'dp';
-                    $transaksi->dp_amount = $grossAmount;
+                // ── Deteksi pembayaran yang datang TERLAMBAT ──
+                // Kasus: transaksi ini sudah lebih dulu ditandai 'gagal'
+                // (baik oleh webhook EXPIRED maupun oleh scheduled command
+                // transaksi:expire-stale karena melewati batas waktu bayar),
+                // TAPI ternyata customer sempat membayar sebelum expired dan
+                // notifikasinya baru sampai sekarang (delay/retry Xendit).
+                //
+                // Kalau slot yang sama sudah diambil transaksi lain yang
+                // masih aktif, kita TIDAK BOLEH otomatis menimpa jadi
+                // 'sudah dibayar' — itu akan membuat dua booking lunas di
+                // slot yang sama. Uangnya sudah masuk, jadi harus ditandai
+                // untuk direview manual oleh admin (refund atau reschedule),
+                // bukan diproses otomatis.
+                if ($transaksi->status === 'gagal') {
+                    $conflict = Transaksi::where('id', '!=', $transaksi->id)
+                        ->where('session_date', $transaksi->session_date)
+                        ->where('session_time', $transaksi->session_time)
+                        ->whereNotIn('status', ['gagal'])
+                        ->exists();
+
+                    if ($conflict) {
+                        $transaksi->status = 'perlu_review';
+                        $transaksi->note = ($transaksi->note ?? '')
+                            . " [PENTING: Pembayaran Rp{$paidAmount} diterima setelah transaksi"
+                            . " {$orderId} expired & slotnya sudah diambil transaksi lain."
+                            . " Perlu review manual admin — kemungkinan refund/reschedule.]";
+                        $transaksi->save();
+
+                        Log::warning("Transaksi {$orderId}: pembayaran telat, slot sudah diambil pihak lain. Butuh review manual admin.");
+                        return; // stop — jangan lanjut ke logic normal di bawah
+                    }
                 }
 
-                $transaksi->payment_type   = $this->mapPaymentType($paymentType);
+                // ── Logic normal ──
+                if ($paidAmount >= (float) $transaksi->total_price) {
+                    $transaksi->status = 'sudah dibayar';
+                } else {
+                    $transaksi->status    = 'dp';
+                    $transaksi->dp_amount = $paidAmount;
+                }
+
+                $transaksi->payment_type   = $this->mapPaymentType($paymentMethod);
                 $transaksi->process_status = 'Pelanggan Belum Foto';
                 $transaksi->save();
 
-                // ── Catat/hapus income — IKUTI PERSIS pola TransaksiController ──
-                // Income HANYA dicatat saat status 'sudah dibayar' (lunas penuh).
-                // Saat status 'dp', TIDAK dicatat ke Expense/Balance — nominal DP
-                // cukup terlihat lewat kolom dp_amount & card "DP (Uang Muka)".
                 if ($transaksi->status === 'sudah dibayar') {
                     $this->recordIncome($transaksi);
                 } else {
@@ -130,7 +148,7 @@ class PaymentController extends Controller
             return response()->json(['message' => 'OK']);
 
         } catch (\Exception $e) {
-            Log::error('Midtrans Webhook Error: ' . $e->getMessage());
+            Log::error('Xendit Webhook Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Server error: ' . $e->getMessage()
             ], 500);
@@ -138,46 +156,109 @@ class PaymentController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // REDIRECT PAGE — Halaman setelah user selesai dari popup Midtrans
-    // Midtrans redirect ke sini dengan query param ?order_id=INV/...
+    // REDIRECT PAGE — Halaman setelah user selesai dari popup Xendit
+    // Xendit redirect ke sini dengan query param ?order_id=INV/...
     // ═══════════════════════════════════════════════════════════════════
+    // public function paymentSuccess(Request $request)
+    // {
+    //     $orderId = $request->query('order_id');
+
+    //     if (!$orderId) {
+    //         abort(404, 'Order ID not found.');
+    //     }
+
+    //     // Eager load packet & product agar tidak N+1 query di Blade
+    //     $transaksi = Transaksi::with(['packet.product'])
+    //         ->where('order_id', $orderId)
+    //         ->first();
+
+    //     // Transaksi tidak ditemukan — tampilkan halaman sukses tanpa detail
+    //     if (!$transaksi) {
+    //         return view('userPage.layouts.success', ['booking' => null]);
+    //     }
+
+    //     $booking = (object) [
+    //         'order_id'      => $transaksi->order_id,
+    //         'customer_name' => $transaksi->customer_name,
+    //         'phone_number'  => $transaksi->phone_number,
+    //         'session_date'  => $transaksi->session_date,
+    //         'session_time'  => $transaksi->session_time,
+    //         'total_price'   => $transaksi->total_price,
+    //         'status'        => $transaksi->status,
+    //         'dp_amount'     => $transaksi->dp_amount,
+    //         'remaining'     => $transaksi->status === 'dp'
+    //                             ? $transaksi->total_price - $transaksi->dp_amount
+    //                             : 0,
+    //         'payment_type'  => $transaksi->payment_type,
+    //         'receipt_code'  => $transaksi->receipt_code,
+    //         'packet'        => $transaksi->packet,
+    //     ];
+
+    //     return view('userPage.layouts.success', compact('booking'));
+    // }
+
     public function paymentSuccess(Request $request)
-    {
-        $orderId = $request->query('order_id');
+{
+    $orderId = $request->query('order_id');
 
-        if (!$orderId) {
-            abort(404, 'Order ID not found.');
-        }
-
-        // Eager load packet & product agar tidak N+1 query di Blade
-        $transaksi = Transaksi::with(['packet.product'])
-            ->where('order_id', $orderId)
-            ->first();
-
-        // Transaksi tidak ditemukan — tampilkan halaman sukses tanpa detail
-        if (!$transaksi) {
-            return view('userPage.layouts.success', ['booking' => null]);
-        }
-
-        $booking = (object) [
-            'order_id'      => $transaksi->order_id,
-            'customer_name' => $transaksi->customer_name,
-            'phone_number'  => $transaksi->phone_number,
-            'session_date'  => $transaksi->session_date,
-            'session_time'  => $transaksi->session_time,
-            'total_price'   => $transaksi->total_price,
-            'status'        => $transaksi->status,
-            'dp_amount'     => $transaksi->dp_amount,
-            'remaining'     => $transaksi->status === 'dp'
-                                ? $transaksi->total_price - $transaksi->dp_amount
-                                : 0,
-            'payment_type'  => $transaksi->payment_type,
-            'receipt_code'  => $transaksi->receipt_code,
-            'packet'        => $transaksi->packet,
-        ];
-
-        return view('userPage.layouts.success', compact('booking'));
+    if (!$orderId) {
+        abort(404, 'Order ID not found.');
     }
+
+    $transaksi = Transaksi::with(['packet.product'])
+        ->where('order_id', $orderId)
+        ->first();
+
+    if (!$transaksi) {
+        // Order tidak ditemukan — tetap tampilkan halaman gagal/fallback
+        return view('userPage.layouts.failed');
+    }
+
+    $message   = $this->buildWhatsappMessage($transaksi);
+    $adminPhone = config('services.whatsapp.admin_number');
+    $waUrl     = "https://wa.me/{$adminPhone}?text=" . rawurlencode($message);
+
+    return redirect()->away($waUrl);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HELPER — Susun pesan WhatsApp otomatis untuk admin
+// ═══════════════════════════════════════════════════════════════════
+private function buildWhatsappMessage(Transaksi $transaksi): string
+{
+    $productName = $transaksi->packet->product->name ?? '-';
+    $packetName  = $transaksi->packet->name ?? '-';
+    $total       = number_format($transaksi->total_price, 0, ',', '.');
+    $isOnLocation = str_contains($transaksi->note ?? '', 'Bayar di Lokasi');
+
+    $lines = [
+        $isOnLocation
+            ? "Halo Admin Yunas Studio, saya ingin mengonfirmasi booking jadwal sesi foto (pembayaran di lokasi):"
+            : "Halo Admin Yunas Studio, saya baru saja melakukan pembayaran booking:",
+        "",
+        "Order ID: {$transaksi->order_id}",
+        "Nama: {$transaksi->customer_name}",
+        "No. WhatsApp: {$transaksi->phone_number}",
+        "Produk: {$productName}",
+        "Paket: {$packetName}",
+        "Tanggal Sesi: {$transaksi->session_date}",
+        "Jam Sesi: {$transaksi->session_time}",
+        "Total Tagihan: Rp{$total}",
+    ];
+
+    if ($isOnLocation) {
+        $lines[] = "Metode Pembayaran: Bayar di lokasi";
+    } elseif ($transaksi->status === 'dp' && $transaksi->dp_amount) {
+        $sisa = $transaksi->total_price - $transaksi->dp_amount;
+        $lines[] = "DP Dibayar: Rp" . number_format($transaksi->dp_amount, 0, ',', '.');
+        $lines[] = "Sisa Pembayaran: Rp" . number_format($sisa, 0, ',', '.');
+    }
+
+    $lines[] = "";
+    $lines[] = "Mohon konfirmasi ya, terima kasih!";
+
+    return implode("\n", $lines);
+}
 
     public function paymentFailed(Request $request)
     {
@@ -202,7 +283,7 @@ class PaymentController extends Controller
         $balance    = Balance::first();
 
         // Cek apakah income untuk transaksi ini sudah pernah dicatat sebelumnya
-        // (misalnya webhook dikirim dua kali oleh Midtrans)
+        // (misalnya webhook dikirim dua kali oleh Xendit)
         $existing = Expense::where('name', $transaksi->receipt_code)
             ->where('type', 'income')
             ->first();
@@ -259,15 +340,16 @@ class PaymentController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // HELPER — Normalisasi nama metode pembayaran dari Midtrans
-    // Midtrans mengembalikan string seperti 'bank_transfer', 'gopay',
-    // 'qris', 'indomaret', dsb. Disederhanakan menjadi dua kategori.
+    // HELPER — Normalisasi nama metode pembayaran dari Xendit
+    // Xendit mengembalikan string seperti 'RETAIL_OUTLET', 'BANK_TRANSFER',
+    // 'EWALLET', 'QRIS', dsb. Disederhanakan menjadi dua kategori.
     // ═══════════════════════════════════════════════════════════════════
-    private function mapPaymentType(string $paymentType): string
+    private function mapPaymentType(string $paymentMethod): string
     {
-        // Pembayaran tunai via minimarket → kategori 'Cash'
-        // Semua lainnya (transfer, QRIS, e-wallet) → kategori 'Transfer/Qris'
-        return in_array($paymentType, ['cash', 'cstore', 'indomaret', 'alfamart'])
+        // Xendit: 'RETAIL_OUTLET' untuk Alfamart/Indomaret, sisanya VA/EWALLET/QRIS
+        $cashMethods = ['RETAIL_OUTLET', 'ALFAMART', 'INDOMARET'];
+
+        return in_array(strtoupper($paymentMethod), $cashMethods)
             ? 'Cash'
             : 'Transfer/Qris';
     }

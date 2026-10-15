@@ -16,28 +16,32 @@ use App\Http\Controllers\AdditionalController;
 use App\Http\Controllers\AdditionalDefaultController;
 use App\Http\Controllers\User\PaymentController;
 use App\Http\Controllers\User\BookingController;
-use App\Http\Controllers\User\ScheduleController;
+use App\Http\Controllers\User\RescheduleRequestController;
 use App\Http\Controllers\User\KontakController;
 use App\Http\Controllers\User\GaleriController;
+use App\Http\Controllers\RescheduleController;
  
+
+
+   
 // ── Halaman Jadwal ────────────────────────────────────────────────────
-Route::get('/jadwal', [ScheduleController::class, 'index'])
+Route::get('/jadwal', [RescheduleRequestController::class, 'index'])
     ->name('schedule');
  
 // ── API: slot tersedia per tanggal ────────────────────────────────────
-Route::get('/jadwal/slots', [ScheduleController::class, 'slots'])
+Route::get('/jadwal/slots', [RescheduleRequestController::class, 'slots'])
     ->name('schedule.slots');
  
 // ── API: cari booking milik user (untuk reschedule) ───────────────────
-Route::post('/jadwal/cari-booking', [ScheduleController::class, 'cariBooking'])
+Route::post('/jadwal/cari-booking', [RescheduleRequestController::class, 'cariBooking'])
     ->name('schedule.cari-booking');
  
 // ── API: simpan reschedule ────────────────────────────────────────────
-Route::post('/jadwal/reschedule', [ScheduleController::class, 'reschedule'])
+Route::post('/jadwal/reschedule', [RescheduleRequestController::class, 'rescheduleRequest'])
     ->name('schedule.reschedule');
 
 // User Page
-    Route::get('/', [UserHomeController::class, 'index'])->name('userPage.home');
+    Route::get('/booking', [UserHomeController::class, 'index'])->name('userPage.home');
     Route::get('/product/{id}', [HomeController::class, 'product'])->name('product.filter');
 
     // Booking
@@ -50,7 +54,9 @@ Route::post('/jadwal/reschedule', [ScheduleController::class, 'reschedule'])
     //galeri
     Route::get('/galeri', [GaleriController::class, 'index'])->name('galeri');
     Route::get('/kontak', [KontakController::class, 'index'])->name('kontak');
-
+    // -- Booking OnLocation
+    Route::get('/booking/success/{order_id}', [
+    BookingController::class,'success'])->name('booking.success');
     // ── Payment (Midtrans) ───────────────────────────────────────────────────
     Route::post('/booking/snap-token', [BookingController::class, 'createSnapToken'])->name('booking.snap-token');
 
@@ -63,12 +69,11 @@ Route::post('/jadwal/reschedule', [ScheduleController::class, 'reschedule'])
 
 
 
-
 // Admin Routes
 Auth::routes();
 
 Route::middleware(['auth'])->group(function () {
-    //Route::get('/', [HomeController::class, 'root']);
+    Route::get('/', [HomeController::class, 'root']);
     Route::get('/dashboard', [HomeController::class, 'index'])->name('dashboard');
 
     // User Management
@@ -119,7 +124,13 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/download-all', [TransaksiController::class, 'downloadAllPhotosAsZip'])->name('downloadAll');
         Route::get('/download-selected', [TransaksiController::class, 'downloadSelectedPhotosAsZip'])->name('downloadSelected');
         Route::get('/download-folder/{status}', [TransaksiController::class, 'downloadFolderAsZip'])->name('downloadFolder');
+
+        
     });
+    // Route untuk reschedule
+        Route::get('/reschedule', [RescheduleController::class, 'index'])->name('view-reschedule');
+        Route::post('/reschedule/{id}/approve', [RescheduleController::class, 'approve'])->name('reschedule.approve');
+        Route::post('/reschedule/{id}/reject', [RescheduleController::class, 'reject'])->name('reschedule.reject');
 });
 
 

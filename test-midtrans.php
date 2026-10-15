@@ -1,10 +1,5 @@
 <?php
-/**
- * File test koneksi Midtrans
- * Letakkan di root project Laravel (sejajar dengan artisan)
- * Jalankan: php test-midtrans.php
- * Hapus file ini setelah selesai test
- */
+
 
 require __DIR__ . '/vendor/autoload.php';
 
@@ -18,7 +13,7 @@ echo "Karakter pertama: " . substr($serverKey, 0, 15) . "\n";
 echo "Karakter terakhir: " . substr($serverKey, -5) . "\n";
 
 echo "=== CEK CONFIG MIDTRANS ===\n";
-// Di dalam test-midtrans.php
+//  test-midtrans.php
 echo "Server Key dari config: " . config('midtrans.server_key') . "\n";
 echo "Is Production dari config: " . (config('midtrans.is_production') ? 'true' : 'false') . "\n";
 echo "Server Key  : " . $serverKey . "\n";
@@ -36,7 +31,7 @@ echo "\n";
 echo "=== TEST KONEKSI KE MIDTRANS ===\n";
 
 try {
-    // Buat transaksi dummy untuk test
+    //  transaksi dummy untuk test
     $params = [
         'transaction_details' => [
             'order_id'     => 'TEST-' . time(),

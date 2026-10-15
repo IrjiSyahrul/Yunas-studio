@@ -2,7 +2,7 @@
 <nav class="mobile-bottom-nav">
 
     {{-- Beranda --}}
-    <a href="{{ url('/') }}" class="{{ request()->is('/') && request()->query('page') !== 'galeri' ? 'active' : '' }}">
+    <a href="{{ route('userPage.home') }}" class="{{ request()->is('/') && request()->query('page') !== 'galeri' ? 'active' : '' }}">
         <i class="bi bi-house-fill"></i>
         <span>Beranda</span>
     </a>

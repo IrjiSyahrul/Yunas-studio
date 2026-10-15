@@ -154,7 +154,7 @@
                                 <div class="rs-success-icon">
                                     <i class="mdi mdi-check-circle"></i>
                                 </div>
-                                <p class="rs-success-title">Jadwal Berhasil Diubah!</p>
+                                <p class="rs-success-title">Jadwal Berhasil Diajukan!</p>
                                 <div class="rs-success-detail" id="rs-success-detail"></div>
                                 <button class="sch-btn-secondary w-100 mt-3" onclick="rsReset()">
                                     Ubah Booking Lain
@@ -983,6 +983,13 @@ window.rsSimpan = async function () {
         document.getElementById('rs-step-3').classList.add('d-none');
         document.getElementById('rs-step-4').classList.remove('d-none');
 
+         if (data.whatsapp_url) {
+            window.location.href = data.whatsapp_url;
+        } else {
+            // Fallback kalau backend belum kirim whatsapp_url
+            errEl.textContent = 'Reschedule tersimpan, tapi gagal membuka WhatsApp. Silakan hubungi admin manual.';
+            errEl.classList.remove('d-none');
+        }
         // Refresh slot di kalender
         _rsMode = false;
         if (_selectedDate) fetchSlots(_selectedDate);

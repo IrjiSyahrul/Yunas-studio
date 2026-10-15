@@ -4,6 +4,7 @@ namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
 use App\Models\Packet;
+use App\Models\RescheduleRequest;
 use App\Models\Transaksi;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Additional;
 
 
-class ScheduleController extends Controller
+class RescheduleRequestController extends Controller
 {
     // ── Status transaksi yang dianggap "aktif" / berhak reschedule ──────
     // 'belum dibayar' → belum bayar sama sekali, tapi slot sudah terkunci
@@ -44,38 +45,45 @@ class ScheduleController extends Controller
     public function slots(Request $request): JsonResponse
     {
         $request->validate([
-            'date'      => 'required|date',
+            'date' => 'required|date',
             'packet_id' => 'nullable|exists:packets,id',
         ]);
 
-        $date     = $request->date;
+        $date = $request->date;
         $allSlots = $this->generateAllSlots();
 
         $viewDuration = 30;
         if ($request->packet_id) {
             $packet = Packet::find($request->packet_id);
-            if ($packet) $viewDuration = $packet->duration_minutes;
+            if ($packet)
+                $viewDuration = $packet->duration_minutes;
         }
 
         $bookedCounts = $this->getBookedCountPerSlot($date);
 
         $slots = [];
         foreach ($allSlots as $time) {
-            $slotsNeeded      = $this->getOccupiedSlots($time, $viewDuration);
-            $rangeAvailable   = true;
+            $slotsNeeded = $this->getOccupiedSlots($time, $viewDuration);
+            $rangeAvailable = true;
             $maxBookedInRange = 0;
 
             foreach ($slotsNeeded as $s) {
-                if (!in_array($s, $allSlots)) { $rangeAvailable = false; break; }
+                if (!in_array($s, $allSlots)) {
+                    $rangeAvailable = false;
+                    break;
+                }
                 $count = $bookedCounts[$s] ?? 0;
-                if ($count >= 2)              { $rangeAvailable = false; break; }
+                if ($count >= 2) {
+                    $rangeAvailable = false;
+                    break;
+                }
                 $maxBookedInRange = max($maxBookedInRange, $count);
             }
 
             $slots[] = [
-                'time'      => $time,
-                'booked'    => $maxBookedInRange,
-                'max'       => 2,
+                'time' => $time,
+                'booked' => $maxBookedInRange,
+                'max' => 2,
                 'available' => $rangeAvailable,
             ];
         }
@@ -106,7 +114,7 @@ class ScheduleController extends Controller
             ->whereDate('session_date', '>=', now()->toDateString())
             ->where(function ($q) use ($identifier) {
                 $q->where('phone_number', $identifier)
-                  ->orWhere('order_id', $identifier);
+                    ->orWhere('order_id', $identifier);
             })
             ->orderBy('session_date')
             ->orderBy('session_time');
@@ -114,25 +122,25 @@ class ScheduleController extends Controller
         $bookings = $query->get()->map(function ($t) {
             return [
                 'transaction_id' => $t->transaction_id,
-                'order_id'       => $t->order_id,
-                'customer_name'  => $t->customer_name,
-                'phone_number'   => $t->phone_number,
-                'packet_name'    => $t->packet->name ?? '-',
-                'duration'       => $t->packet->duration_minutes ?? 60,
-                'session_date'   => $t->session_date,
-                'session_time'   => $t->session_time,
-                'status'         => $t->status,
-                'total_price'    => $t->total_price,
-                'dp_amount'      => $t->dp_amount,
-                'remaining'      => $t->status === 'dp'
-                                        ? $t->total_price - $t->dp_amount
-                                        : 0,
+                'order_id' => $t->order_id,
+                'customer_name' => $t->customer_name,
+                'phone_number' => $t->phone_number,
+                'packet_name' => $t->packet->name ?? '-',
+                'duration' => $t->packet->duration_minutes ?? 60,
+                'session_date' => $t->session_date,
+                'session_time' => $t->session_time,
+                'status' => $t->status,
+                'total_price' => $t->total_price,
+                'dp_amount' => $t->dp_amount,
+                'remaining' => $t->status === 'dp'
+                    ? $t->total_price - $t->dp_amount
+                    : 0,
             ];
         });
 
         if ($bookings->isEmpty()) {
             return response()->json([
-                'message'  => 'Tidak ada booking aktif yang ditemukan untuk nomor HP atau Order ID tersebut.',
+                'message' => 'Tidak ada booking aktif yang ditemukan untuk nomor HP atau Order ID tersebut.',
                 'bookings' => [],
             ], 404);
         }
@@ -143,7 +151,7 @@ class ScheduleController extends Controller
     // ═══════════════════════════════════════════════════════════════════
     // API — LAKUKAN RESCHEDULE
     // POST /jadwal/reschedule
-    // Body: { transaction_id, new_date, new_time, identifier }
+    // Body: { transaction_id, new_date, new_time, identifier, reason? }
     //
     // Validasi:
     // 1. Transaksi milik identifier (HP / order_id)
@@ -151,24 +159,30 @@ class ScheduleController extends Controller
     // 3. Slot baru tidak penuh (mempertimbangkan durasi paket)
     // 4. Slot baru tidak sama dengan slot lama
     // 5. Tanggal baru tidak di masa lalu
+    //
+    // Setelah berhasil disimpan, response menyertakan 'whatsapp_url' agar
+    // frontend bisa langsung redirect customer ke WhatsApp admin dengan
+    // pesan konfirmasi otomatis (nama, order id, jadwal lama & baru).
     // ═══════════════════════════════════════════════════════════════════
-    public function reschedule(Request $request): JsonResponse
+    public function rescheduleRequest(Request $request): JsonResponse
     {
         $request->validate([
             'transaction_id' => 'required|exists:transaksi,transaction_id',
-            'new_date'       => 'required|date|after_or_equal:today',
-            'new_time'       => 'required|string',
-            'identifier'     => 'required|string|max:100',
+            'new_date' => 'required|date|after_or_equal:today',
+            'new_time' => 'required|string',
+            'identifier' => 'required|string|max:100',
+            'reason' => 'nullable|string|max:500',
         ]);
 
         $identifier = trim($request->identifier);
 
         // Cari transaksi & pastikan milik identifier ini
-        $transaksi = Transaksi::with('packet:id,name,duration_minutes')
+        // Eager load packet.product agar tersedia untuk pesan WhatsApp
+        $transaksi = Transaksi::with('packet.product')
             ->where('transaction_id', $request->transaction_id)
             ->where(function ($q) use ($identifier) {
                 $q->where('phone_number', $identifier)
-                  ->orWhere('order_id', $identifier);
+                    ->orWhere('order_id', $identifier);
             })
             ->whereIn('status', self::ACTIVE_STATUSES)
             ->first();
@@ -180,15 +194,17 @@ class ScheduleController extends Controller
         }
 
         // Cek tidak sama dengan jadwal lama
-        if ($transaksi->session_date == $request->new_date &&
-            $transaksi->session_time == $request->new_time) {
+        if (
+            $transaksi->session_date == $request->new_date &&
+            $transaksi->session_time == $request->new_time
+        ) {
             return response()->json([
                 'message' => 'Jadwal baru sama dengan jadwal saat ini.',
             ], 422);
         }
 
-        $duration    = $transaksi->packet->duration_minutes ?? 60;
-        $allSlots    = $this->generateAllSlots();
+        $duration = $transaksi->packet->duration_minutes ?? 60;
+        $allSlots = $this->generateAllSlots();
 
         // Cek slot baru masuk jam operasional
         $slotsNeeded = $this->getOccupiedSlots($request->new_time, $duration);
@@ -196,7 +212,7 @@ class ScheduleController extends Controller
             if (!in_array($s, $allSlots)) {
                 return response()->json([
                     'message' => 'Waktu ' . $request->new_time . ' dengan durasi ' .
-                                 $duration . ' menit melewati jam operasional (maks 18:00).',
+                        $duration . ' menit melewati jam operasional (maks 18:00).',
                 ], 422);
             }
         }
@@ -208,7 +224,7 @@ class ScheduleController extends Controller
             if (($bookedCounts[$slot] ?? 0) >= 2) {
                 return response()->json([
                     'message' => 'Slot ' . $request->new_time . ' pada tanggal ' .
-                                 $request->new_date . ' sudah penuh. Silakan pilih waktu lain.',
+                        $request->new_date . ' sudah penuh. Silakan pilih waktu lain.',
                 ], 422);
             }
         }
@@ -217,25 +233,52 @@ class ScheduleController extends Controller
         $oldDate = $transaksi->session_date;
         $oldTime = $transaksi->session_time;
 
+        // Cek apakah sudah pernah request reschedule sebelumnya dan hanya dapat 1 request per transaksi
+        $alreadyRequested = RescheduleRequest::where(
+            'transaction_id',
+            $transaksi->transaction_id
+        )->exists();
+
+        if ($alreadyRequested) {
+            return response()->json([
+                'message' => 'Booking ini sudah pernah mengajukan reschedule.'
+            ], 422);
+        }
+
         // Update jadwal
-        $transaksi->session_date = $request->new_date;
-        $transaksi->session_time = $request->new_time;
-        $transaksi->note         = $transaksi->note .
-            "\n[Reschedule] " . $oldDate . ' ' . $oldTime .
-            ' → ' . $request->new_date . ' ' . $request->new_time .
-            ' pada ' . now()->format('d-m-Y H:i');
-        $transaksi->save();
+        RescheduleRequest::create([
+            'transaction_id' => $transaksi->transaction_id,
+            'old_schedule_date' => $oldDate,
+            'old_schedule_time' => $oldTime,
+            'new_schedule_date' => $request->new_date,
+            'new_schedule_time' => $request->new_time,
+            'status' => 'pending',
+            'reason' => $request->reason,
+        ]);
 
         Log::info("Reschedule: {$transaksi->order_id} dari {$oldDate} {$oldTime} ke {$request->new_date} {$request->new_time}");
 
+        // ── Susun pesan & URL WhatsApp untuk redirect customer ke admin ──
+        $waMessage = $this->buildWhatsappMessage(
+            $transaksi,
+            $oldDate,
+            $oldTime,
+            $request->new_date,
+            $request->new_time,
+            $request->reason
+        );
+        $adminPhone = config('services.whatsapp.admin_number');
+        $waUrl = "https://wa.me/{$adminPhone}?text=" . rawurlencode($waMessage);
+
         return response()->json([
-            'message'      => 'Jadwal berhasil diubah!',
-            'new_date'     => $request->new_date,
-            'new_time'     => $request->new_time,
-            'old_date'     => $oldDate,
-            'old_time'     => $oldTime,
-            'order_id'     => $transaksi->order_id,
-            'packet_name'  => $transaksi->packet->name ?? '-',
+            'message' => 'Permintaan reschedule berhasil dikirim dan sedang menunggu persetujuan admin.',
+            'new_date' => $request->new_date,
+            'new_time' => $request->new_time,
+            'old_date' => $oldDate,
+            'old_time' => $oldTime,
+            'order_id' => $transaksi->order_id,
+            'packet_name' => $transaksi->packet->name ?? '-',
+            'whatsapp_url' => $waUrl,
         ]);
     }
 
@@ -247,7 +290,8 @@ class ScheduleController extends Controller
         $slots = [];
         for ($h = 10; $h <= 18; $h++) {
             foreach ([0, 30] as $m) {
-                if ($h === 18 && $m === 30) break;
+                if ($h === 18 && $m === 30)
+                    break;
                 $slots[] = sprintf('%02d:%02d', $h, $m);
             }
         }
@@ -256,8 +300,8 @@ class ScheduleController extends Controller
 
     private function getOccupiedSlots(string $startTime, int $durationMinutes): array
     {
-        $slots     = [];
-        $start     = Carbon::createFromFormat('H:i', $startTime);
+        $slots = [];
+        $start = Carbon::createFromFormat('H:i', $startTime);
         $slotCount = (int) ceil($durationMinutes / 30);
         for ($i = 0; $i < $slotCount; $i++) {
             $slots[] = $start->copy()->addMinutes($i * 30)->format('H:i');
@@ -293,5 +337,47 @@ class ScheduleController extends Controller
         }
 
         return $booked;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // HELPER — Susun pesan WhatsApp otomatis untuk admin (reschedule)
+    // Menampilkan perbandingan jadwal lama vs baru, bukan hanya satu
+    // jadwal tunggal, agar admin langsung paham perubahan yang diajukan.
+    // ═══════════════════════════════════════════════════════════════════
+    private function buildWhatsappMessage(
+        Transaksi $transaksi,
+        string $oldDate,
+        string $oldTime,
+        string $newDate,
+        string $newTime,
+        ?string $reason = null
+    ): string {
+        $productName = $transaksi->packet->product->name ?? '-';
+        $packetName  = $transaksi->packet->name ?? '-';
+        $total       = number_format($transaksi->total_price, 0, ',', '.');
+
+        $lines = [
+            "Halo Admin Yunas Studio, saya mengajukan reschedule booking:",
+            "",
+            "Order ID: {$transaksi->order_id}",
+            "Nama: {$transaksi->customer_name}",
+            "No. WhatsApp: {$transaksi->phone_number}",
+            "Produk: {$productName}",
+            "Paket: {$packetName}",
+            "Total Tagihan: Rp{$total}",
+            "",
+            "Jadwal Lama: {$oldDate} pukul {$oldTime} WIB",
+            "Jadwal Baru: {$newDate} pukul {$newTime} WIB",
+        ];
+
+        if ($reason) {
+            $lines[] = "";
+            $lines[] = "Alasan: {$reason}";
+        }
+
+        $lines[] = "";
+        $lines[] = "Mohon konfirmasi/approve ya, terima kasih!";
+
+        return implode("\n", $lines);
     }
 }

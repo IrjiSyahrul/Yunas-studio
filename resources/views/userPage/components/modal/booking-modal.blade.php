@@ -7,11 +7,11 @@ Perubahan dari versi sebelumnya:
 2. bookingUpdatePrice → refresh slot saat paket diganti
 3. fetchAndRenderSlots → kirim packet_id ke /booking/available-slots
 4. Tambahan Ekstra (additional) sekarang benar-benar terhubung ke:
-   - Perhitungan getTotalPrice() (paket + tambahan)
-   - Validasi & tampilan DP
-   - Ringkasan harga step 2
-   - Ringkasan konfirmasi step 3
-   - Payload yang dikirim ke /booking/snap-token
+- Perhitungan getTotalPrice() (paket + tambahan)
+- Validasi & tampilan DP
+- Ringkasan harga step 2
+- Ringkasan konfirmasi step 3
+- Payload yang dikirim ke /booking/snap-token
 =====================================================================
 --}}
 
@@ -240,14 +240,15 @@ Perubahan dari versi sebelumnya:
                                 <select id="add_additional_select" class="bm-select">
                                     <option value="">Pilih tambahan...</option>
                                     @foreach($all_additionals as $additional)
-                                        <option value="{{ $additional->id }}"
-                                            data-name="{{ $additional->name }}"
+                                        <option value="{{ $additional->id }}" data-name="{{ $additional->name }}"
                                             data-price="{{ $additional->price }}">
-                                            {{ $additional->name }} (Rp {{ number_format($additional->price, 0, ',', '.') }})
+                                            {{ $additional->name }} (Rp
+                                            {{ number_format($additional->price, 0, ',', '.') }})
                                         </option>
                                     @endforeach
                                 </select>
-                                <button type="button" class="bm-btn-secondary" style="white-space:nowrap;" id="add-additional-btn">
+                                <button type="button" class="bm-btn-secondary" style="white-space:nowrap;"
+                                    id="add-additional-btn">
                                     <i class="mdi mdi-plus"></i> Tambah
                                 </button>
                             </div>
@@ -271,6 +272,7 @@ Perubahan dari versi sebelumnya:
                                         </div>
                                     </div>
                                 </label>
+
                                 <label class="bm-payment-card" id="payment-card-dp">
                                     <input type="radio" name="b_payment_type" id="b_payment_dp" value="dp"
                                         onchange="bookingTogglePaymentType()">
@@ -279,6 +281,18 @@ Perubahan dari versi sebelumnya:
                                         <div>
                                             <p class="bm-payment-card-title">DP (Uang Muka)</p>
                                             <p class="bm-payment-card-sub">Min. Rp 50.000</p>
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <label class="bm-payment-card" id="payment-card-onLocation">
+                                    <input type="radio" name="b_payment_type" id="b_payment_onLocation" value="onLocation"
+                                        onchange="bookingTogglePaymentType()">
+                                    <div class="bm-payment-card-inner">
+                                        <i class="mdi mdi-cash-clock"></i>
+                                        <div>
+                                            <p class="bm-payment-card-title">Bayar ditempat</p>
+                                            <p class="bm-payment-card-sub"></p>
                                         </div>
                                     </div>
                                 </label>
@@ -301,6 +315,7 @@ Perubahan dari versi sebelumnya:
                             </div>
                             <small class="text-muted d-block mt-1" id="b-dp-remaining-hint"></small>
                         </div>
+
                         <div class="col-12 d-none" id="booking-price-summary">
                             <div class="bm-price-summary">
                                 <div>
@@ -599,6 +614,14 @@ Perubahan dari versi sebelumnya:
 
     .booking-step-fade {
         animation: stepFadeIn .25s ease;
+    }
+    .invalid-feedback {
+    font-size: 11px;
+    color: var(--bm-danger);
+    margin-top: 4px;
+}
+    .invalid-feedback:not(.d-none) {
+        display: block !important;
     }
 
     .bm-body {
@@ -1176,8 +1199,6 @@ Perubahan dari versi sebelumnya:
     }
 </style>
 
-<script src="{{ config('midtrans.snap_url') }}" data-client-key="{{ config('midtrans.client_key') }}"></script>
-
 {{-- ═══════════════════════════════════════════════════════════════════
 JAVASCRIPT — IIFE UTAMA
 ═══════════════════════════════════════════════════════════════════ --}}
@@ -1262,6 +1283,7 @@ JAVASCRIPT — IIFE UTAMA
 
             if (step === 2 && !_calInitialized) { calInit(); _calInitialized = true; }
             if (step === 3) fillConfirmation();
+            
         };
 
         // ── Validasi per step ─────────────────────────────────────────────
@@ -1279,10 +1301,13 @@ JAVASCRIPT — IIFE UTAMA
             };
 
             if (step === 1) {
+
                 clearErr('b_customer_name', 'err_customer_name');
                 clearErr('b_phone_number', 'err_phone_number');
+
                 if (!document.getElementById('b_customer_name').value.trim())
                     setErr('b_customer_name', 'err_customer_name');
+
                 if (!/^08\d{8,12}$/.test(document.getElementById('b_phone_number').value.trim()))
                     setErr('b_phone_number', 'err_phone_number');
             }
@@ -1424,7 +1449,7 @@ JAVASCRIPT — IIFE UTAMA
         }
 
         function getPaymentType() {
-            return document.getElementById('b_payment_dp').checked ? 'dp' : 'full';
+            return document.getElementById('b_payment_dp').checked ? 'dp' : document.getElementById('b_payment_onLocation').checked ? 'onLocation' : 'full';
         }
 
         function getDpAmount() {
@@ -1433,8 +1458,12 @@ JAVASCRIPT — IIFE UTAMA
 
         function updatePaymentCardStyles() {
             const isFull = document.getElementById('b_payment_full').checked;
+            const isDp = document.getElementById('b_payment_dp').checked;
+            const isOnLocation = document.getElementById('b_payment_onLocation').checked;
+
             document.getElementById('payment-card-full').classList.toggle('selected', isFull);
-            document.getElementById('payment-card-dp').classList.toggle('selected', !isFull);
+            document.getElementById('payment-card-dp').classList.toggle('selected', isDp);
+            document.getElementById('payment-card-onLocation').classList.toggle('selected', isOnLocation);
         }
 
         function updatePriceSummaryDisplay() {
@@ -1459,7 +1488,18 @@ JAVASCRIPT — IIFE UTAMA
                 display.textContent = formatRp(dp);
                 sub.textContent = `Total ${formatRp(total)}` + (extrasTotal > 0 ? ` (${extrasNote})` : '') + ` · Sisa ${formatRp(Math.max(total - dp, 0))}`;
                 sub.classList.remove('d-none');
-            } else {
+
+            } else if (getPaymentType() === 'onLocation') {
+                label.textContent = 'Bayar di Lokasi';
+                display.textContent = formatRp(total);
+                if (extrasNote) {
+                    sub.textContent = extrasNote;
+                    sub.classList.remove('d-none');
+                } else {
+                    sub.classList.add('d-none');
+                }
+            }
+            else {
                 label.textContent = 'Total Pembayaran';
                 display.textContent = formatRp(total);
                 if (extrasNote) {
@@ -1539,7 +1579,9 @@ JAVASCRIPT — IIFE UTAMA
             const duration = parseInt(packetSel.options[packetSel.selectedIndex]?.dataset.duration) || 0;
             const sessionTime = document.getElementById('b_session_time').value;
             const totalPrice = getTotalPrice(); // paket + tambahan
+            const infoBox = document.querySelector('#booking-step-3 .bm-info-box');
 
+            
             document.getElementById('confirm_name').textContent = document.getElementById('b_customer_name').value;
             document.getElementById('confirm_phone').textContent = document.getElementById('b_phone_number').value;
             document.getElementById('confirm_product').textContent = productSel.options[productSel.selectedIndex]?.dataset.productName || '-';
@@ -1573,9 +1615,16 @@ JAVASCRIPT — IIFE UTAMA
             const totalLabel = document.getElementById('confirm_total_label');
 
             document.getElementById('confirm_payment_method').textContent =
-                paymentType === 'dp' ? 'DP (Uang Muka)' : 'Bayar Penuh';
+                paymentType === 'dp' ? 'DP (Uang Muka)' : paymentType === 'onLocation' ? 'Bayar di Lokasi' : 'Bayar Penuh';
 
-            if (paymentType === 'dp') {
+            if(paymentType === 'onLocation') {
+                            dpRow.classList.add('d-none');
+                remainingRow.classList.add('d-none');
+                totalLabel.textContent = 'Dibayar di Lokasi';
+                document.getElementById('confirm_total').textContent = formatRp(totalPrice);
+
+            }
+            else if (paymentType === 'dp') {
                 const dp = getDpAmount();
                 document.getElementById('confirm_dp_amount').textContent = formatRp(dp);
                 document.getElementById('confirm_remaining').textContent = formatRp(Math.max(totalPrice - dp, 0));
@@ -1591,7 +1640,8 @@ JAVASCRIPT — IIFE UTAMA
             }
         }
 
-        // ── Submit → Midtrans Snap ────────────────────────────────────────
+
+        //  Submit → Xendit Invoice Redirect
         window.bookingSubmit = async function () {
             const loadingEl = document.getElementById('booking-loading');
             const actionEl = document.getElementById('booking-action-btns');
@@ -1601,8 +1651,6 @@ JAVASCRIPT — IIFE UTAMA
             actionEl.classList.add('d-none');
             closeBtn.disabled = true;
 
-            // Format additionals sebagai object keyed by id: { [id]: { quantity } }
-            // (harga TIDAK dikirim — server akan mengambil ulang dari DB demi keamanan)
             const additionalsPayload = {};
             Object.values(_selectedAdditionals).forEach(a => {
                 additionalsPayload[a.id] = { quantity: a.qty };
@@ -1621,7 +1669,7 @@ JAVASCRIPT — IIFE UTAMA
             };
 
             try {
-                const snapRes = await fetch('{{ route("booking.snap-token") }}', {
+                const invoiceRes = await fetch('{{ route("booking.snap-token") }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1631,35 +1679,18 @@ JAVASCRIPT — IIFE UTAMA
                     body: JSON.stringify(payload),
                 });
 
-                const snapData = await snapRes.json();
+                const invoiceData = await invoiceRes.json();
 
-                if (!snapRes.ok) {
-                    const errMsg = snapData.errors
-                        ? Object.values(snapData.errors).flat().join('\n')
-                        : (snapData.message || 'Terjadi kesalahan.');
+                if (!invoiceRes.ok) {
+                    const errMsg = invoiceData.errors
+                        ? Object.values(invoiceData.errors).flat().join('\n')
+                        : (invoiceData.message || 'Terjadi kesalahan.');
                     throw new Error(errMsg);
                 }
 
-                const bookingModalEl = document.getElementById('bookingModal');
-                const bsModal = bootstrap.Modal.getInstance(bookingModalEl);
-
-                window._bookingGoingToSnap = true;
-                if (document.activeElement) document.activeElement.blur();
-                document.body.focus();
-                bsModal.hide();
-
-                snap.pay(snapData.snap_token, {
-                    onSuccess: (r) => { window._bookingGoingToSnap = false; window.location.href = `{{ route("payment.success") }}?order_id=${r.order_id}`; },
-                    onPending: (r) => { window._bookingGoingToSnap = false; window.location.href = `{{ route("payment.success") }}?order_id=${r.order_id}&status=pending`; },
-                    onError: (r) => { window._bookingGoingToSnap = false; window.location.href = `{{ route("payment.failed") }}?order_id=${r.order_id}`; },
-                    onClose: () => {
-                        window._bookingGoingToSnap = false;
-                        bsModal.show();
-                        loadingEl.classList.add('d-none');
-                        actionEl.classList.remove('d-none');
-                        closeBtn.disabled = false;
-                    },
-                });
+                const target = invoiceData.redirect_url || invoiceData.invoice_url;
+                if (!target) throw new Error('URL tujuan tidak ditemukan.');
+                window.location.href = target;
 
             } catch (error) {
                 loadingEl.classList.add('d-none');

@@ -89,6 +89,13 @@
                         </a>
                     </li>
                 @endcan
+
+                <li>
+                    <a href="{{ route('view-reschedule') }}" class="waves-effect">
+                        <i class="uil-chart"></i>
+                        <span>Reschedule</span>
+                    </a>
+                </li>
             </ul>
         </div>
         <!-- Sidebar -->

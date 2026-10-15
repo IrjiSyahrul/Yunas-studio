@@ -42,19 +42,19 @@
                                 </div>
 
                                 <div class="row">
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="price" class="form-label">Price (Rp)</label>
                                             <input type="number" class="form-control" id="price" name="price" value="{{ old('price', $packet->price) }}" min="0" required>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="max_photos_for_edit" class="form-label">Max Photos for Edit</label>
                                             <input type="number" class="form-control" id="max_photos_for_edit" name="max_photos_for_edit" value="{{ old('max_photos_for_edit', $packet->max_photos_for_edit) }}" min="0" required>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="mb-3">
                                             <label for="product_id" class="form-label">Product</label>
                                             <select class="form-select" id="product_id" name="product_id" required>
@@ -64,6 +64,42 @@
                                                     </option>
                                                 @endforeach
                                             </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label for="duration_minutes" class="form-label">
+                                                Durasi Pemotretan
+                                            </label>
+                                            <select class="form-select @error('duration_minutes') is-invalid @enderror"
+                                                    id="duration_minutes"
+                                                    name="duration_minutes"
+                                                    required>
+                                                @php
+                                                    $durations = [
+                                                        30  => '30 menit',
+                                                        60  => '1 jam',
+                                                        90  => '1 jam 30 menit',
+                                                        120 => '2 jam',
+                                                        150 => '2 jam 30 menit',
+                                                        180 => '3 jam',
+                                                        210 => '3 jam 30 menit',
+                                                        240 => '4 jam',
+                                                    ];
+                                                @endphp
+                                                <option value="" disabled {{ old('duration_minutes', $packet->duration_minutes) ? '' : 'selected' }}>
+                                                    -- Pilih Durasi --
+                                                </option>
+                                                @foreach($durations as $value => $label)
+                                                    <option value="{{ $value }}"
+                                                        {{ old('duration_minutes', $packet->duration_minutes) == $value ? 'selected' : '' }}>
+                                                        {{ $label }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            @error('duration_minutes')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
                                         </div>
                                     </div>
                                 </div>
@@ -155,4 +191,4 @@
             }
         }
     </script>
-@endsection 
+@endsection
