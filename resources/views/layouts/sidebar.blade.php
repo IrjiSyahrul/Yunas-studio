@@ -89,6 +89,20 @@
                         </a>
                     </li>
                 @endcan
+
+                <li>
+                    <a href="{{ route('view-reschedule') }}" class="waves-effect">
+                        <i class="uil-chart"></i>
+                        <span>Reschedule</span>
+                    </a>
+                </li>
+
+                 <li>
+                    <a href="{{url('gateway')}}" class="waves-effect">
+                        <i class="uil-invoice"></i>
+                        <span>Payment Gateway</span>
+                    </a>
+                </li>
             </ul>
         </div>
         <!-- Sidebar -->

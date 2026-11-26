@@ -158,8 +158,7 @@ class PacketController extends Controller
         
         $status = $packet->is_active ? 'activated' : 'deactivated';
         
-        return redirect()->back()
-                         ->with('success');
+       return redirect()->back()->with('success');
     }
 
     /**

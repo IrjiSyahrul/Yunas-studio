@@ -4,6 +4,8 @@
 @endsection
 
 @section('css')
+    {{-- Tom Select (fitur pencarian pada dropdown) --}}
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
     <style>
         .price-summary-card {
             position: sticky;
@@ -17,6 +19,16 @@
         }
         .product-packet-container {
             display: none;
+        }
+
+        /* Tom Select di dalam input-group */
+        .input-group > .ts-wrapper {
+            flex: 1 1 auto;
+            width: 1%;
+        }
+        .input-group > .ts-wrapper .ts-control {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
         }
     </style>
 @endsection
@@ -68,7 +80,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             {{-- UPGRADE: Payment Type & DP Amount Container --}}
                             <div class="col-md-12 row" id="payment-details-container" style="display: none;">
                                 <div class="col-md-6" id="dp-amount-container" style="display: none;">
@@ -101,7 +113,7 @@
                                 <div class="mb-3">
                                     <label for="product_id" class="form-label">Produk</label>
                                     <select class="form-select @error('product_id') is-invalid @enderror" id="product_id" name="product_id" required>
-                                        <option value="" disabled selected>-- Pilih Produk --</option>
+                                        <option value="">-- Pilih Produk --</option>
                                         @foreach($packets as $productName => $packetGroup)
                                             <option value="{{ $packetGroup->first()->product_id }}"
                                                     data-product-name="{{ $productName }}">
@@ -207,6 +219,8 @@
 @endsection
 
 @section('script')
+    {{-- Tom Select harus dimuat sebelum kode inisialisasi --}}
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Form Elements
@@ -222,6 +236,23 @@
             const dpAmountContainer = document.getElementById('dp-amount-container');
             const dpAmountInput = document.getElementById('dp_amount');
             const paymentTypeRadios = document.querySelectorAll('.payment-type-radio');
+
+            // ===== Tom Select: dropdown dengan fitur pencarian =====
+            // Catatan: JANGAN pakai allowEmptyOption: true, karena <option value="">
+            // akan dianggap item terpilih (teks "Pilih tambahan..." muncul sebagai nilai),
+            // bukan placeholder.
+            const additionalTS = new TomSelect('#add_additional_select', {
+                placeholder: 'Cari tambahan...',
+                maxOptions: null,       // tampilkan semua hasil
+                openOnFocus: true,
+            });
+
+            // Pencarian untuk dropdown Produk (event 'change' tetap terpicu di <select> asli)
+            new TomSelect('#product_id', {
+                placeholder: 'Cari produk...',
+                maxOptions: null,
+                openOnFocus: true,
+            });
 
             // Summary Card Elements
             const summary = {
@@ -297,7 +328,7 @@
                     <input type="number" name="additionals[${id}][quantity]" class="form-control form-control-sm quantity-input" value="${quantity}" min="1">
                 </div>
                 <div class="col-md-2">
-                    <button type="button" class="btn btn-sm btn-danger remove-additional-btn w-100" onclick="document.getElementById('${rowId}').remove(); updateSummary();">
+                    <button type="button" class="btn btn-sm btn-danger remove-additional-btn w-100">
                         <i class="mdi mdi-delete"></i>
                     </button>
                 </div>
@@ -312,19 +343,19 @@
 
             function togglePaymentFields() {
                 const selectedStatus = document.querySelector('.payment-status-radio:checked')?.value;
-                
+
                 if (selectedStatus === 'belum dibayar') {
                     paymentDetailsContainer.style.display = 'none';
                     dpAmountInput.value = '';
                     paymentTypeRadios.forEach(radio => radio.checked = false);
                 } else {
                     paymentDetailsContainer.style.display = 'flex'; // Use flex because it's a row
-                    
+
                     if (selectedStatus === 'dp') {
-                         dpAmountContainer.style.display = 'block';
+                        dpAmountContainer.style.display = 'block';
                     } else { // lunas
-                         dpAmountContainer.style.display = 'none';
-                         dpAmountInput.value = '';
+                        dpAmountContainer.style.display = 'none';
+                        dpAmountInput.value = '';
                     }
                 }
                 updateSummary();
@@ -366,8 +397,9 @@
                 packetSelect.innerHTML = '<option value="" data-price="0" disabled selected>-- Pilih Paket --</option>';
 
                 if (productId) {
-                    const productName = this.options[this.selectedIndex].dataset.productName;
-                    const packets = productPackets[productName];
+                    const selectedOption = this.options[this.selectedIndex];
+                    const productName = selectedOption.dataset.productName;
+                    const packets = productPackets[productName] || [];
 
                     packets.forEach(packet => {
                         const option = document.createElement('option');
@@ -388,12 +420,29 @@
             });
 
             // Event Listeners
-            packetSelect.addEventListener('change', fetchAndDisplayDefaults);
+            packetSelect.addEventListener('change', () => {
+                fetchAndDisplayDefaults();
+                updateSummary();
+            });
+
             addBtn.addEventListener('click', () => {
-                const selected = addSelect.options[addSelect.selectedIndex];
-                if (selected.value) {
-                    addExtraRow(selected.value, selected.dataset.name, selected.dataset.price);
-                    addSelect.value = '';
+                const value = additionalTS.getValue();
+                if (!value) return;
+
+                // <option> asli tetap ada di DOM, jadi data-name & data-price bisa dibaca
+                const optionEl = addSelect.querySelector(`option[value="${value}"]`);
+                if (!optionEl) return;
+
+                addExtraRow(value, optionEl.dataset.name, optionEl.dataset.price);
+                additionalTS.clear(); // reset pilihan setelah ditambahkan
+            });
+
+            // Hapus item ekstra (event delegation)
+            extraContainer.addEventListener('click', function(e) {
+                const btn = e.target.closest('.remove-additional-btn');
+                if (btn) {
+                    btn.closest('.extra-additional-row').remove();
+                    updateSummary();
                 }
             });
 

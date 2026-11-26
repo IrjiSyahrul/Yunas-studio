@@ -205,6 +205,32 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-md-4">
+    <div class="card mini-stats-wid">
+        <div class="card-body">
+            <div class="d-flex">
+                <div class="flex-grow-1">
+                    <p class="text-muted fw-medium mb-1">Pendapatan Bersih − DP</p>
+                    <span class="badge bg-primary-subtle text-primary mb-2">Hari Ini</span>
+                    <h4 class="mb-0 text-primary">
+                        <span class="amount-container" data-amount="Rp {{ number_format($todayNetMinusDp, 0, ',', '.') }}">
+                            <span class="amount-value amount-hidden">Rp {{ number_format($todayNetMinusDp, 0, ',', '.') }}</span>
+                            <i class="bx bx-hide toggle-amount-visibility" title="Tampilkan/Sembunyikan Nominal"></i>
+                        </span>
+                    </h4>
+                    <p class="text-muted mb-0 font-size-12 mt-1">
+                        Lunas Rp {{ number_format($todaySudahDibayar, 0, ',', '.') }} ({{ $countTodaySudahDibayar }})
+                        − DP Rp {{ number_format($todayDp, 0, ',', '.') }} ({{ $countTodayDp }})
+                    </p>
+                </div>
+                <div class="flex-shrink-0 align-self-center">
+                    <i class="bx bx-calculator font-size-24 text-primary"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+                
             </div>
         </div>
         <div class="col-lg-3">
@@ -378,6 +404,7 @@
                                         }
                                     @endphp
                                     <th>Pelanggan</th>
+                                    <th>DP</th>
                                     <th>Tipe Pembayaran</th>
                                     <th>Produk</th>
                                     <th>{!! sortable_header('Total Biaya', 'total_price', request()) !!}</th>
@@ -409,7 +436,9 @@
                                     $paymentTypes = [
                                         'none' => 'None',
                                         'Cash' => 'Cash',
-                                        'Transfer/Qris' => 'Transfer/Qris'
+                                        'Transfer' => 'Transfer',
+                                        'QRIS' => 'QRIS',
+                                        'Xendit' => 'Xendit'
                                     ];
                                 @endphp
                                 @forelse($transactions as $transaksi)
@@ -421,6 +450,12 @@
                                                 <i class="bx bx-phone text-secondary me-1"></i>
                                                 {{ $transaksi->phone_number }}
                                             </div>
+                                        </td>
+
+                                        <td>
+                                            <h6 class="mb-1">
+                                            {{ $transaksi->dp_amount ? 'Rp ' . number_format($transaksi->dp_amount, 0, ',', '.') : '-' }}
+                                            </h6>
                                         </td>
 
                                         {{-- Payment Type Column --}}
@@ -437,7 +472,7 @@
                                                 </select>
                                             </form>
                                         </td>
-
+                                        
                                         <td>
                                             <span class="fw-bold">{{ $transaksi->packet->product->name ?? 'N/A' }}</span>
                                             @if($transaksi->packet && $transaksi->packet->product)

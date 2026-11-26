@@ -1,7 +1,7 @@
 @extends('userPage.layouts.app')
 
 @include('userPage.styles.mobile-style')
-
+<title>Yunas Studio - Home</title>
 @section('content')
 
     @include('userPage.components.modal.booking-modal')

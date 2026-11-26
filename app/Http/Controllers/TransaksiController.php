@@ -200,6 +200,18 @@ class TransaksiController extends Controller
         $totalProfit = $totalDpPaid + $totalSudahDibayar;
         $totalOverallProfit = Transaksi::sum('total_price');
 
+        // <<< BARU: Statistik KHUSUS HARI INI (tidak terpengaruh filter/search/role)
+        $todayBase = Transaksi::query()->whereDate('created_at', Carbon::today());
+
+        $todaySudahDibayar = (clone $todayBase)->where('status', 'sudah dibayar')->sum('total_price');
+        $countTodaySudahDibayar = (clone $todayBase)->where('status', 'sudah dibayar')->count();
+
+        $todayDp = (clone $todayBase)->where('status', 'dp')->sum('dp_amount');
+        $countTodayDp = (clone $todayBase)->where('status', 'dp')->count();
+
+        $todayNetMinusDp = $todaySudahDibayar - $todayDp;
+        // >>> END BARU
+
         // 5. Get List Data
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = $request->input('sort_direction', 'desc');
@@ -232,7 +244,11 @@ class TransaksiController extends Controller
             'totalSudahDibayar', 'countSudahDibayar',
             'totalProfit', 'totalOverallProfit', 
             'packetsForFilter', 'paymentStatuses', 'processStatuses',
-            'filterLabel'
+            'filterLabel',
+            // <<< BARU
+            'todaySudahDibayar', 'countTodaySudahDibayar',
+            'todayDp', 'countTodayDp',
+            'todayNetMinusDp'
         ));
     }
 

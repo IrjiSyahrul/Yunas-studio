@@ -32,7 +32,7 @@
                         {{-- Image --}}
                         <div class="overflow-hidden" style="height: 256px;">
                             <img src="{{ $imageUrl }}"
-                                class="card-img-top w-100 h-100 object-fit-cover product-image"
+                                class="card-img-top w-100 h-100 object-fit-contain product-image"
                                 alt="{{ $productName }}"
                                 loading="lazy">
                         </div>

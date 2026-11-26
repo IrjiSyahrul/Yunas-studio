@@ -13,7 +13,7 @@ const CACHE_NAME = "laravel-pwa-v2-20260716";
 const OFFLINE_URL = "/offline.html";
 
 const FILES_TO_CACHE = [
-    "/",
+    "/booking",
     OFFLINE_URL
 ];
 
