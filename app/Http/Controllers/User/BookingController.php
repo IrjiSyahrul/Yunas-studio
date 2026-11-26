@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
+use App\Models\Gateway;
 use App\Models\Packet;
 use App\Models\Transaksi;
 use App\Models\User;
@@ -40,7 +41,8 @@ class BookingController extends Controller
     private function getOccupiedSlots(string $startTime, int $durationMinutes): array
     {
         $slots = [];
-        $start = Carbon::createFromFormat('H:i', $startTime);
+        // $start = Carbon::createFromFormat('H:i', $startTime);
+        $start = Carbon::parse($startTime);
         $slotCount = (int) ceil($durationMinutes / 30); // misal 60 menit → 2 slot
 
         for ($i = 0; $i < $slotCount; $i++) {
@@ -62,7 +64,7 @@ class BookingController extends Controller
         $booked = [];
 
         // Ambil semua transaksi aktif di tanggal ini beserta durasi paketnya
-        $transaksis = Transaksi::whereDate('session_date', $date)
+        $transaksis = Gateway::whereDate('session_date', $date)
             ->whereNotIn('status', ['gagal'])
             ->with('packet:id,duration_minutes')
             ->get(['session_time', 'packet_id']);
@@ -168,8 +170,8 @@ class BookingController extends Controller
             ], 422);
         }
         // ─────────────────────────────────────────────────────────────
-$paymentOption = $validated['payment_option'];
-$isOnLocation  = $paymentOption === 'onLocation'; 
+        $paymentOption = $validated['payment_option'];
+        $isOnLocation  = $paymentOption === 'onLocation'; 
         DB::beginTransaction();
         try {
             $user = User::firstOrCreate(
@@ -181,7 +183,7 @@ $isOnLocation  = $paymentOption === 'onLocation';
                 ]
             );
 
-            $transaksi = Transaksi::create([
+            $transaksi = Gateway::create([
                 'user_id' => $user->id,
                 'customer_name' => $validated['customer_name'],
                 'phone_number' => $validated['phone_number'],
@@ -192,7 +194,7 @@ $isOnLocation  = $paymentOption === 'onLocation';
                 'discount' => 0,
                 'status' => 'belum dibayar',
                 'payment_type' => $isOnLocation ? 'Cash' : 'none',
-                'dp_amount' => null,
+                'dp_amount' => $validated['dp_amount'] ?? null,
                 'process_status' => 'Pelanggan Belum Foto',
                 'note' => 'Booking online — ' . $validated['session_date'] . ' ' . $validated['session_time']
                     . ($paymentOption === 'dp'
@@ -374,7 +376,7 @@ $isOnLocation  = $paymentOption === 'onLocation';
 
     public function downloadPdf($order_id)
     {
-        $booking = Transaksi::with([
+        $booking = Gateway::with([
             'packet.product',
             'packet.printOptions',
             'additionals',
@@ -399,7 +401,7 @@ $isOnLocation  = $paymentOption === 'onLocation';
         abort(404, 'Order ID not found.');
     }
 
-    $transaksi = Transaksi::with(['packet.product'])
+    $transaksi = Gateway::with(['packet.product'])
         ->where('order_id', $orderId)
         ->first();
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\dataGatewayController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HomeController;
@@ -104,6 +105,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Transaksi
     Route::resource('transaksi', TransaksiController::class);
+    Route::resource('gateway', dataGatewayController::class);
     Route::put('/transaksi/{id}/update-status', [TransaksiController::class, 'updateStatus'])->name('transaksi.update-status');
 
     Route::prefix('transaksi/{transaksi}')->name('transaksi.')->group(function () {

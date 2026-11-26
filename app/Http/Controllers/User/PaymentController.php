@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
+use App\Models\Gateway;
 use App\Models\Transaksi;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -55,7 +56,7 @@ class PaymentController extends Controller
 
             Log::info("Xendit Webhook: {$orderId} - {$status} - Rp{$paidAmount}");
 
-            $transaksi = Transaksi::where('order_id', $orderId)->first();
+            $transaksi = Gateway::where('order_id', $orderId)->first();
 
             if (!$transaksi) {
                 Log::warning("Transaksi tidak ditemukan di database: {$orderId}");
@@ -107,7 +108,7 @@ class PaymentController extends Controller
                 // untuk direview manual oleh admin (refund atau reschedule),
                 // bukan diproses otomatis.
                 if ($transaksi->status === 'gagal') {
-                    $conflict = Transaksi::where('id', '!=', $transaksi->id)
+                    $conflict = Gateway::where('id', '!=', $transaksi->id)
                         ->where('session_date', $transaksi->session_date)
                         ->where('session_time', $transaksi->session_time)
                         ->whereNotIn('status', ['gagal'])
@@ -205,7 +206,7 @@ class PaymentController extends Controller
         abort(404, 'Order ID not found.');
     }
 
-    $transaksi = Transaksi::with(['packet.product'])
+    $transaksi = Gateway::with(['packet.product'])
         ->where('order_id', $orderId)
         ->first();
 
@@ -224,7 +225,7 @@ class PaymentController extends Controller
 // ═══════════════════════════════════════════════════════════════════
 // HELPER — Susun pesan WhatsApp otomatis untuk admin
 // ═══════════════════════════════════════════════════════════════════
-private function buildWhatsappMessage(Transaksi $transaksi): string
+private function buildWhatsappMessage(Gateway $transaksi): string
 {
     $productName = $transaksi->packet->product->name ?? '-';
     $packetName  = $transaksi->packet->name ?? '-';
@@ -272,7 +273,7 @@ private function buildWhatsappMessage(Transaksi $transaksi): string
     // pembukuan konsisten baik dari alur web maupun input manual admin.
     // Menggunakan receipt_code sebagai nama unik agar tidak duplikat.
     // ═══════════════════════════════════════════════════════════════════
-    private function recordIncome(Transaksi $transaksi): void
+    private function recordIncome(Gateway $transaksi): void
     {
         $description = "Billed To:\nName: {$transaksi->customer_name}\n"
                      . "Phone: {$transaksi->phone_number}\n"
